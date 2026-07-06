@@ -1,4 +1,5 @@
 # Template-GYM
+<<<<<<< HEAD
 
 Digitalización del registro, accesos y suscripciones de un gimnasio.
 
@@ -24,3 +25,7 @@ Tienen dos formas de levantar el backend (ambas comparten el mismo `supabase/sch
 4. `npm run mobile` (o `cd apps/mobile && npm start`) y abre el proyecto con Expo Go o un emulador.
 
 Si en vez de Cloud usan el backend self-hosted de `infra/`, el paso 2 es el mismo pero usando la URL de su dominio y el `ANON_KEY` que genera `infra/scripts/generate-secrets.js`.
+=======
+GIM
+
+>>>>>>> 5467a8a51697a815b151f50b0e250b294c82af95
