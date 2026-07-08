@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 
-type BadgeVariant = 'active' | 'expiring_soon' | 'expired' | 'blocked' | 'temporary_access' | 'pending_activation' | 'archived' | 'authorized' | 'invalid_qr' | 'manual' | 'confirmed' | 'cancelled' | 'corrected' | 'pending';
+type BadgeVariant = 'active' | 'expiring_soon' | 'expired' | 'blocked' | 'temporary_access' | 'pending_activation' | 'archived' | 'authorized' | 'invalid_qr' | 'manual' | 'confirmed' | 'cancelled' | 'corrected' | 'pending' | 'operating' | 'maintenance' | 'out_of_service' | 'low_stock';
 
 const styles: Record<BadgeVariant, string> = {
   active: 'bg-green-100 text-green-800',
@@ -17,6 +17,10 @@ const styles: Record<BadgeVariant, string> = {
   cancelled: 'bg-red-100 text-red-800',
   corrected: 'bg-yellow-100 text-yellow-800',
   pending: 'bg-gray-100 text-gray-600',
+  operating: 'bg-green-100 text-green-800',
+  maintenance: 'bg-yellow-100 text-yellow-800',
+  out_of_service: 'bg-red-100 text-red-800',
+  low_stock: 'bg-orange-100 text-orange-800',
 };
 
 const labels: Record<BadgeVariant, string> = {
@@ -24,6 +28,7 @@ const labels: Record<BadgeVariant, string> = {
   temporary_access: 'Acceso temporal', pending_activation: 'Pendiente', archived: 'Archivado',
   authorized: 'Autorizado', invalid_qr: 'QR inválido', manual: 'Manual',
   confirmed: 'Confirmado', cancelled: 'Cancelado', corrected: 'Corregido', pending: 'Pendiente',
+  operating: 'Operando', maintenance: 'En mantenimiento', out_of_service: 'Fuera de servicio', low_stock: 'Bajo stock',
 };
 
 export function StatusBadge({ status, className }: { status: BadgeVariant; className?: string }) {

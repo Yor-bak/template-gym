@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { format, formatDistanceToNow, differenceInDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { MemberStatus, AccessResult, PaymentStatus, PaymentMethod } from '@/types';
+import type { MemberStatus, AccessResult, PaymentStatus, PaymentMethod, InventoryArea, InventoryStatus } from '@/types';
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
@@ -72,6 +72,25 @@ export function getPaymentMethodLabel(method: PaymentMethod): string {
 
 export function getPaymentStatusLabel(status: PaymentStatus): string {
   const labels: Record<PaymentStatus, string> = { confirmed: 'Confirmado', cancelled: 'Cancelado', corrected: 'Corregido', pending: 'Pendiente' };
+  return labels[status];
+}
+
+export function getInventoryAreaLabel(area: InventoryArea): string {
+  const labels: Record<InventoryArea, string> = {
+    cardio: 'Cardio',
+    fuerza: 'Fuerza',
+    peso_libre: 'Peso libre',
+    tienda: 'Tiendita',
+  };
+  return labels[area];
+}
+
+export function getInventoryStatusLabel(status: InventoryStatus): string {
+  const labels: Record<InventoryStatus, string> = {
+    operating: 'Operando',
+    maintenance: 'En mantenimiento',
+    out_of_service: 'Fuera de servicio',
+  };
   return labels[status];
 }
 

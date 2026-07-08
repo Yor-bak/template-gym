@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Monitor, Users, CreditCard, History,
-  BarChart2, Settings, Shield, UserCheck, LogOut, Dumbbell
+  BarChart2, Settings, Shield, UserCheck, LogOut, Dumbbell, Boxes
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/members', label: 'Miembros', icon: Users },
   { href: '/memberships', label: 'Membresías', icon: Dumbbell },
   { href: '/payments', label: 'Pagos', icon: CreditCard },
+  { href: '/inventory', label: 'Inventario', icon: Boxes },
   { href: '/access-history', label: 'Historial de accesos', icon: History },
   { href: '/reports', label: 'Reportes', icon: BarChart2 },
   { href: '/staff', label: 'Personal', icon: UserCheck, adminOnly: true },
