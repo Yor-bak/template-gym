@@ -540,6 +540,13 @@ create policy "gyms_write_platform_admin" on public.gyms
   for all using (public.my_role() = 'platform_admin')
   with check (public.my_role() = 'platform_admin');
 
+-- El admin de una sucursal puede editar los datos de SU propia sucursal
+-- (nombre, dirección, color, etc.) desde Configuración — no crear/borrar
+-- sucursales, eso sigue siendo solo de platform_admin.
+create policy "gyms_update_own_admin" on public.gyms
+  for update using (id = public.my_gym_id() and public.my_role() = 'admin')
+  with check (id = public.my_gym_id() and public.my_role() = 'admin');
+
 -- profiles
 create policy "profiles_select_own" on public.profiles
   for select using (id = auth.uid());

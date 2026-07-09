@@ -1,9 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Save, Building, Shield, CreditCard, Palette, ClipboardList } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
 import { useAuth } from '@/lib/auth';
+import { useStore } from '@/lib/store';
+import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
 
 type SettingsTab = 'gym' | 'access' | 'payments' | 'appearance' | 'audit';
 
@@ -15,25 +17,30 @@ const tabs: { key: SettingsTab; label: string; icon: React.ElementType }[] = [
   { key: 'audit', label: 'Auditoría', icon: ClipboardList },
 ];
 
-const auditLogs = [
-  { id: 1, action: 'Bloqueo de miembro', user: 'Carlos Mendoza', detail: 'AF-00021 — Javier Moreno', time: '2026-06-29T14:00:00Z' },
-  { id: 2, action: 'Registro de pago', user: 'María González', detail: 'AF-00004 — $450 efectivo', time: '2026-07-01T09:30:00Z' },
-  { id: 3, action: 'Cancelación de pago', user: 'Carlos Mendoza', detail: 'pay_021 — pago duplicado', time: '2026-07-01T08:00:00Z' },
-  { id: 4, action: 'Alta de miembro', user: 'Roberto Hernández', detail: 'AF-00035 — Nicolás Sandoval', time: '2026-07-02T08:00:00Z' },
-  { id: 5, action: 'Acceso temporal', user: 'María González', detail: 'AF-00023 — Marco Alvarado', time: '2026-07-02T08:10:00Z' },
-];
-
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { gym, members, payments, updateGym } = useStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('gym');
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const [gymSettings, setGymSettings] = useState({
-    name: 'American Fitness', address: 'Av. Insurgentes Sur 1234, Col. Del Valle, CDMX',
-    phone: '55 1234 5678', email: 'contacto@americanfitness.mx',
-    timezone: 'America/Mexico_City', currency: 'MXN', memberPrefix: 'AF',
+    name: '', address: '', phone: '', email: '', timezone: 'America/Mexico_City', currency: 'MXN', memberPrefix: '',
   });
 
+  // Se sincroniza una vez que llegan los datos reales de la sucursal — no en
+  // cada render, para no pisar lo que el admin esté escribiendo.
+  useEffect(() => {
+    if (!gym) return;
+    setGymSettings({
+      name: gym.name, address: gym.address, phone: gym.phone, email: gym.email,
+      timezone: gym.timezone, currency: gym.currency, memberPrefix: gym.memberPrefix,
+    });
+  }, [gym]);
+
+  // Acceso y Métodos de pago todavía no tienen nada en la app que los lea de
+  // verdad (ej. el popup de acceso tiene su tiempo de cierre fijo en código),
+  // así que se quedan como ejemplo visual hasta que exista un consumidor real.
   const [accessSettings, setAccessSettings] = useState({
     expirationWarningDays: 7, toleranceDays: 3, allowTemporaryAccess: true,
     maxTemporaryHours: 24, popupAutoCloseSecs: 6, requireVisualConfirmation: false,
@@ -44,30 +51,59 @@ export default function SettingsPage() {
     cash: true, card: true, transfer: true, other: false,
   });
 
-  const [appearance, setAppearance] = useState({
-    primaryColor: '#2563eb', darkMode: false,
-  });
+  const [primaryColor, setPrimaryColor] = useState('#16305A');
+  useEffect(() => {
+    if (gym?.primaryColor) setPrimaryColor(gym.primaryColor);
+  }, [gym?.primaryColor]);
+
+  const auditEvents = useMemo(() => {
+    const events: { id: string; action: string; user: string; detail: string; time: string }[] = [];
+    payments.forEach(p => {
+      if (p.status === 'cancelled') {
+        events.push({ id: `pay_cancel_${p.id}`, action: 'Cancelación de pago', user: p.cancelledBy ?? '—', detail: `${p.memberNumber} — ${formatCurrency(p.amount)}${p.cancelReason ? ` (${p.cancelReason})` : ''}`, time: p.cancelledAt ?? p.paymentDate });
+      } else {
+        events.push({ id: `pay_${p.id}`, action: 'Registro de pago', user: p.registeredBy, detail: `${p.memberNumber} — ${formatCurrency(p.amount)} ${getPaymentMethodLabel(p.method)}`, time: p.paymentDate });
+      }
+    });
+    members.forEach(m => {
+      events.push({ id: `new_${m.id}`, action: 'Alta de miembro', user: m.createdBy || '—', detail: `${m.memberNumber} — ${m.firstName} ${m.lastName}`, time: m.createdAt });
+      if (m.blockedAt) events.push({ id: `blk_${m.id}`, action: 'Bloqueo de miembro', user: m.blockedBy ?? '—', detail: `${m.memberNumber} — ${m.blockReason ?? 'Sin motivo'}`, time: m.blockedAt });
+      if (m.temporaryAccessUntil) events.push({ id: `tmp_${m.id}`, action: 'Acceso temporal', user: m.temporaryAccessBy ?? '—', detail: `${m.memberNumber} — ${m.temporaryAccessReason ?? ''}`, time: m.temporaryAccessUntil });
+    });
+    return events.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 30);
+  }, [payments, members]);
 
   const canEdit = user?.role === 'admin';
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (activeTab === 'gym') {
+        await updateGym({ ...gymSettings, currency: gymSettings.currency as 'MXN' | 'USD' });
+      } else if (activeTab === 'appearance') {
+        await updateGym({ primaryColor });
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const showsSaveButton = activeTab === 'gym' || activeTab === 'appearance';
 
   return (
     <AppShell>
       <Header
         title="Configuración"
-        subtitle="American Fitness"
-        actions={canEdit && (
-          <button onClick={handleSave} className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors ${saved ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-            <Save className="w-4 h-4" /> {saved ? 'Guardado' : 'Guardar cambios'}
+        subtitle={gym?.name ?? ''}
+        actions={canEdit && showsSaveButton && (
+          <button onClick={handleSave} disabled={saving} className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+            <Save className="w-4 h-4" /> {saving ? 'Guardando...' : saved ? 'Guardado' : 'Guardar cambios'}
           </button>
         )}
       />
       <div className="flex h-[calc(100vh-65px)]">
-        {/* Settings Sidebar */}
         <div className="w-48 shrink-0 border-r border-gray-200 bg-white p-3 space-y-0.5">
           {tabs.map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left ${activeTab === t.key ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
@@ -77,7 +113,6 @@ export default function SettingsPage() {
           ))}
         </div>
 
-        {/* Settings Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {activeTab === 'gym' && (
             <div className="max-w-lg space-y-4">
@@ -120,6 +155,9 @@ export default function SettingsPage() {
           {activeTab === 'access' && (
             <div className="max-w-lg space-y-5">
               <h2 className="font-semibold text-gray-900">Configuración de acceso</h2>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                Estos valores todavía no los usa ninguna pantalla de la app — son un ejemplo de lo que se podría configurar. Conectarlos requiere además cablear cada pantalla que debería leerlos.
+              </div>
               {[
                 { key: 'expirationWarningDays', label: 'Días para mostrar advertencia de vencimiento' },
                 { key: 'toleranceDays', label: 'Días de tolerancia después del vencimiento' },
@@ -158,6 +196,9 @@ export default function SettingsPage() {
           {activeTab === 'payments' && (
             <div className="max-w-lg space-y-4">
               <h2 className="font-semibold text-gray-900">Métodos de pago habilitados</h2>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                Ejemplo visual — el formulario de registrar pago todavía muestra los 4 métodos sin importar lo que se configure aquí.
+              </div>
               {[
                 { key: 'cash', label: 'Efectivo' },
                 { key: 'card', label: 'Tarjeta (débito/crédito)' },
@@ -184,22 +225,10 @@ export default function SettingsPage() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Color principal</label>
                 <div className="flex gap-3 items-center">
-                  <input type="color" value={appearance.primaryColor} onChange={e => setAppearance(prev => ({ ...prev, primaryColor: e.target.value }))} disabled={!canEdit} className="w-10 h-10 rounded-lg cursor-pointer border border-gray-200" />
-                  <span className="text-sm text-gray-600 font-mono">{appearance.primaryColor}</span>
+                  <input type="color" value={primaryColor} onChange={e => setPrimaryColor(e.target.value)} disabled={!canEdit} className="w-10 h-10 rounded-lg cursor-pointer border border-gray-200" />
+                  <span className="text-sm text-gray-600 font-mono">{primaryColor}</span>
                 </div>
-              </div>
-              <div className="flex items-center justify-between py-3 border-b border-gray-100">
-                <span className="text-sm text-gray-700">Modo oscuro</span>
-                <button
-                  disabled={!canEdit}
-                  onClick={() => canEdit && setAppearance(prev => ({ ...prev, darkMode: !prev.darkMode }))}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${appearance.darkMode ? 'bg-blue-600' : 'bg-gray-200'}`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${appearance.darkMode ? 'translate-x-5' : ''}`} />
-                </button>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-4 text-sm text-blue-700">
-                El logotipo y los colores finales se configurarán cuando el gimnasio active su cuenta premium.
+                <p className="text-xs text-gray-400 mt-2">Se guarda en la sucursal, pero el dashboard sigue usando la paleta de marca fija (azul marino) en el CSS — este valor queda disponible para cuando se lea dinámicamente.</p>
               </div>
             </div>
           )}
@@ -218,7 +247,9 @@ export default function SettingsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {auditLogs.map(log => (
+                    {auditEvents.length === 0 ? (
+                      <tr><td colSpan={4} className="text-center text-gray-400 text-sm py-8">Sin actividad registrada todavía</td></tr>
+                    ) : auditEvents.map(log => (
                       <tr key={log.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium text-gray-900">{log.action}</td>
                         <td className="px-4 py-3 text-gray-600">{log.user}</td>

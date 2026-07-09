@@ -204,6 +204,7 @@ interface AppStore {
   // entrenador, desde la app móvil.
   genericRoutines: Routine[];
   isLoading: boolean;
+  updateGym: (updates: Partial<Gym>) => Promise<void>;
   addMember: (input: Partial<Member>) => Promise<Member>;
   updateMember: (id: string, updates: Partial<Member>) => Promise<void>;
   addPayment: (input: Partial<Payment>) => Promise<Payment>;
@@ -632,6 +633,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const invalidate = (key: string) => queryClient.invalidateQueries({ queryKey: [key] });
 
+  const updateGym: AppStore['updateGym'] = async (updates) => {
+    if (!gymId) throw new Error('No hay sesión activa');
+    const payload: Record<string, unknown> = {};
+    if ('name' in updates) payload.name = updates.name;
+    if ('address' in updates) payload.address = updates.address || null;
+    if ('phone' in updates) payload.phone = updates.phone || null;
+    if ('email' in updates) payload.email = updates.email || null;
+    if ('memberPrefix' in updates) payload.member_prefix = updates.memberPrefix;
+    if ('currency' in updates) payload.currency = updates.currency;
+    if ('timezone' in updates) payload.timezone = updates.timezone;
+    if ('primaryColor' in updates) payload.primary_color = updates.primaryColor;
+
+    const { error } = await supabase.from('gyms').update(payload).eq('id', gymId);
+    if (error) throw error;
+    await invalidate('gym');
+  };
+
   const addMember: AppStore['addMember'] = async (input) => {
     if (!user || !gymId) throw new Error('No hay sesión activa');
 
@@ -1020,6 +1038,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         trainerAssignments,
         genericRoutines,
         isLoading,
+        updateGym,
         addMember,
         updateMember,
         addPayment,
