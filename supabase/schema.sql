@@ -432,10 +432,14 @@ declare
   v_days_left int;
   v_caller_gym uuid;
 begin
+  -- El código rota cada 20s mientras el cliente tiene la app abierta; si
+  -- sigue "activo" pero ya pasó bastante más que eso (60s de margen para
+  -- demoras de red), lo tratamos como inválido — evita que un código quede
+  -- vigente para siempre si el cliente cerró la app antes de que rotara.
   select m.* into v_member
   from public.members m
   join public.client_access_codes c on c.member_id = m.id
-  where c.code = p_code and c.active;
+  where c.code = p_code and c.active and c.created_at > now() - interval '60 seconds';
 
   if not found then
     select gym_id into v_caller_gym from public.profiles where id = auth.uid();
