@@ -382,6 +382,38 @@ $$;
 
 grant execute on function public.lookup_activation_code(text) to anon, authenticated;
 
+-- rotate_my_access_code: la app móvil la llama cada 20 segundos mientras el
+-- cliente tiene abierta la pantalla del QR. Desactiva el código anterior e
+-- inserta uno nuevo, siempre acotado al member del propio caller (nunca se
+-- confía en un id recibido del cliente) — así una foto del QR deja de servir
+-- casi de inmediato.
+create function public.rotate_my_access_code()
+returns public.client_access_codes
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_member_id uuid;
+  v_new public.client_access_codes%rowtype;
+begin
+  select id into v_member_id from public.members where profile_id = auth.uid();
+
+  if v_member_id is null then
+    raise exception 'No se encontró un member ligado a esta cuenta';
+  end if;
+
+  update public.client_access_codes set active = false where member_id = v_member_id and active;
+
+  insert into public.client_access_codes (member_id)
+  values (v_member_id)
+  returning * into v_new;
+
+  return v_new;
+end;
+$$;
+
+grant execute on function public.rotate_my_access_code() to authenticated;
+
 -- validate_access: usada por el Monitor de Acceso del dashboard al escanear
 -- un QR. security invoker a propósito: corre con los permisos del staff que
 -- llama, así que respeta las políticas de RLS de abajo tal cual (un cliente

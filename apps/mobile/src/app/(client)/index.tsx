@@ -1,6 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePreventScreenCapture } from 'expo-screen-capture';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Gradients, Shadows, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
-import { useMyAccessCode, useMyMember } from '@/hooks/use-gym-data';
+import { ACCESS_CODE_ROTATION_SECONDS, useMyMember, useRotatingAccessCode } from '@/hooks/use-gym-data';
 import type { MemberStatus } from '@/types/database';
 
 const STATUS_LABEL: Record<MemberStatus, string> = {
@@ -31,9 +32,27 @@ export default function ClientHomeScreen() {
 
   const { profile } = useAuth();
   const { data: member, isLoading: loadingMember } = useMyMember(profile?.id);
-  const { data: accessCode, isLoading: loadingCode } = useMyAccessCode(member?.id);
 
   const isActive = !!member && ACCESS_ALLOWED_STATUSES.includes(member.status);
+
+  const {
+    data: accessCode,
+    isLoading: loadingCode,
+    dataUpdatedAt,
+  } = useRotatingAccessCode(isActive);
+
+  const [secondsLeft, setSecondsLeft] = useState(ACCESS_CODE_ROTATION_SECONDS);
+
+  useEffect(() => {
+    if (!dataUpdatedAt) return;
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - dataUpdatedAt) / 1000);
+      setSecondsLeft(Math.max(0, ACCESS_CODE_ROTATION_SECONDS - elapsed));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [dataUpdatedAt]);
 
   return (
     <ThemedView style={styles.container}>
@@ -69,6 +88,14 @@ export default function ClientHomeScreen() {
               </ThemedText>
             )}
           </View>
+
+          {isActive && accessCode && (
+            <BlurView intensity={30} tint="light" style={styles.rotationBadge}>
+              <ThemedText type="small" style={styles.rotationText}>
+                Se renueva en {secondsLeft}s
+              </ThemedText>
+            </BlurView>
+          )}
 
           <ThemedText type="small" style={styles.qrHint}>
             Muestra este código en la entrada del gimnasio
@@ -119,6 +146,15 @@ const styles = StyleSheet.create({
   qrDisabledText: {
     color: '#333333',
     textAlign: 'center',
+  },
+  rotationBadge: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.half,
+    borderRadius: Spacing.five,
+    overflow: 'hidden',
+  },
+  rotationText: {
+    color: '#ffffff',
   },
   qrHint: {
     color: '#ffffffcc',

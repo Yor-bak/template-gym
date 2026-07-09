@@ -1,9 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
-import type { Member, Profile, Routine, RoutineExercise } from '@/types/database';
+import type { ClientAccessCode, Member, Profile, Routine, RoutineExercise } from '@/types/database';
 
 export type RoutineWithExercises = Routine & { routine_exercises: RoutineExercise[] };
+
+/** Cuántos segundos vive cada código antes de rotarse. */
+export const ACCESS_CODE_ROTATION_SECONDS = 20;
 
 /** El registro de negocio del cliente (member) ligado a su cuenta de login. */
 export function useMyMember(profileId?: string) {
@@ -22,18 +25,20 @@ export function useMyMember(profileId?: string) {
   });
 }
 
-/** Código de acceso activo del cliente (lo que se codifica en el QR). */
-export function useMyAccessCode(memberId?: string) {
+/**
+ * Código de acceso que se rota solo cada `ACCESS_CODE_ROTATION_SECONDS`
+ * mientras la pantalla del QR esté abierta: cada intervalo llama a la RPC
+ * `rotate_my_access_code`, que desactiva el código anterior y crea uno nuevo
+ * del lado del servidor (nunca confía en nada que mande el cliente). Así una
+ * foto del QR deja de servir en cuestión de segundos.
+ */
+export function useRotatingAccessCode(enabled: boolean) {
   return useQuery({
-    queryKey: ['access-code', memberId],
-    enabled: !!memberId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('client_access_codes')
-        .select('*')
-        .eq('member_id', memberId as string)
-        .eq('active', true)
-        .maybeSingle();
+    queryKey: ['rotating-access-code'],
+    enabled,
+    refetchInterval: enabled ? ACCESS_CODE_ROTATION_SECONDS * 1000 : false,
+    queryFn: async (): Promise<ClientAccessCode> => {
+      const { data, error } = await supabase.rpc('rotate_my_access_code').single<ClientAccessCode>();
       if (error) throw error;
       return data;
     },
