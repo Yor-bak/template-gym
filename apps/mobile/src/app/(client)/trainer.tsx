@@ -7,11 +7,12 @@ import { ThemedView } from '@/components/themed-view';
 import { Card } from '@/components/ui/card';
 import { Gradients, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
-import { useMyTrainer } from '@/hooks/use-gym-data';
+import { useMyMember, useMyTrainer } from '@/hooks/use-gym-data';
 
 export default function ClientTrainerScreen() {
   const { profile } = useAuth();
-  const { data: trainer, isLoading } = useMyTrainer(profile?.id);
+  const { data: member } = useMyMember(profile?.id);
+  const { data: trainer, isLoading } = useMyTrainer(member?.id);
 
   return (
     <ThemedView style={styles.container}>

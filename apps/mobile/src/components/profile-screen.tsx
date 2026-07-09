@@ -8,11 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Gradients, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
+import type { UserRole } from '@/types/database';
 
-const ROLE_LABEL = {
+const ROLE_LABEL: Record<UserRole, string> = {
   client: 'Cliente',
   trainer: 'Entrenador',
-} as const;
+  admin: 'Administrador',
+  receptionist: 'Recepción',
+  platform_admin: 'Admin de plataforma',
+};
 
 export function ProfileScreen() {
   const { profile, signOut } = useAuth();

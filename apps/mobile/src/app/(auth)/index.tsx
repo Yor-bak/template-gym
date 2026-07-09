@@ -77,7 +77,7 @@ export default function LoginScreen() {
 
             <Link href="/(auth)/register" asChild>
               <ThemedText type="link" themeColor="textSecondary" style={styles.registerLink}>
-                ¿No tienes cuenta? Regístrate
+                ¿Tienes un código de activación del gym?
               </ThemedText>
             </Link>
           </Card>

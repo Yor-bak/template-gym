@@ -2,18 +2,18 @@ import type { Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { supabase } from '@/lib/supabase';
-import type { Profile, UserRole } from '@/types/database';
+import type { Profile } from '@/types/database';
 
 interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (params: {
+  /** Solo para clientes: requiere un código de activación válido dado por el gym. */
+  activateAccount: (params: {
     email: string;
     password: string;
-    fullName: string;
-    role: UserRole;
+    activationCode: string;
   }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
@@ -69,11 +69,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return { error: error?.message ?? null };
       },
-      signUp: async ({ email, password, fullName, role }) => {
+      activateAccount: async ({ email, password, activationCode }) => {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName, role } },
+          options: { data: { activation_code: activationCode } },
         });
         return { error: error?.message ?? null };
       },

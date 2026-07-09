@@ -4,12 +4,6 @@ import { useRouter } from 'next/navigation';
 import { Dumbbell, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
-const quickAccess = [
-  { label: 'Administrador', email: 'admin@americanfitness.mx', password: 'admin123' },
-  { label: 'Recepcionista', email: 'recepcion@americanfitness.mx', password: 'recep123' },
-  { label: 'Admin Plataforma', email: 'platform@templategym.mx', password: 'platform123' },
-];
-
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
@@ -23,28 +17,17 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    await new Promise(r => setTimeout(r, 400));
-    const ok = login(email, password);
-    if (ok) {
+    const { error: loginError } = await login(email, password);
+    if (!loginError) {
       router.push('/dashboard');
     } else {
-      setError('Correo o contraseña incorrectos.');
+      setError(loginError);
       setLoading(false);
     }
   };
 
-  const quickLogin = async (qa: typeof quickAccess[0]) => {
-    setEmail(qa.email);
-    setPassword(qa.password);
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 300));
-    const ok = login(qa.email, qa.password);
-    if (ok) router.push('/dashboard');
-    setLoading(false);
-  };
-
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#081226] via-[#16305A] to-[#0B1F3A] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -59,9 +42,9 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Correo o usuario</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Correo</label>
               <input
-                type="text"
+                type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -90,18 +73,6 @@ export default function LoginPage() {
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
           </form>
-
-          {/* Quick Access */}
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <p className="text-xs text-gray-400 text-center mb-3">Acceso rápido (demo)</p>
-            <div className="grid grid-cols-3 gap-2">
-              {quickAccess.map(qa => (
-                <button key={qa.email} onClick={() => quickLogin(qa)} className="px-2 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 text-center transition-colors">
-                  {qa.label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
         <p className="text-center text-xs text-gray-500 mt-4">Template Gym v1.0 — American Fitness</p>
       </div>

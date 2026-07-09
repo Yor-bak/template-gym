@@ -58,7 +58,7 @@ export default function MembershipsPage() {
     setShowForm(false);
   };
 
-  const gymMemberships = memberships.filter(m => m.gymId === 'gym_001');
+  const gymMemberships = memberships;
 
   return (
     <AppShell>

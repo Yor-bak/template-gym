@@ -12,12 +12,6 @@ interface MemberFormProps {
   onSuccess?: (member: Member) => void;
 }
 
-function getNextMemberNumber(members: Member[]): string {
-  const nums = members.map(m => parseInt(m.memberNumber.split('-')[1] ?? '0')).filter(n => !isNaN(n));
-  const max = Math.max(0, ...nums);
-  return `AF-${String(max + 1).padStart(5, '0')}`;
-}
-
 function calcExpiration(membershipId: string, memberships: Membership[], startDate: string): string {
   const ms = memberships.find(m => m.id === membershipId);
   if (!ms) return startDate;
@@ -29,7 +23,7 @@ function calcExpiration(membershipId: string, memberships: Membership[], startDa
 }
 
 export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps) {
-  const { members, addMember, addPayment } = useStore();
+  const { addMember, addPayment } = useStore();
   const { user } = useAuth();
   const today = new Date().toISOString().split('T')[0];
 
@@ -70,51 +64,42 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
     e.preventDefault();
     if (!validate()) return;
     setLoading(true);
-    await new Promise(r => setTimeout(r, 500));
-    const memberNumber = getNextMemberNumber(members);
-    const newMember: Member = {
-      id: `mem_${Date.now()}`,
-      gymId: 'gym_001',
-      memberNumber,
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-      phone: form.phone.trim(),
-      email: form.email.trim() || undefined,
-      birthDate: form.birthDate || undefined,
-      membershipId: form.membershipId,
-      status: registerPayment ? 'active' : 'pending_activation',
-      startDate: form.startDate,
-      expirationDate,
-      lastPaymentDate: registerPayment ? today : undefined,
-      mobileAppStatus: 'not_activated',
-      emergencyContact: form.emergencyContact || undefined,
-      emergencyPhone: form.emergencyPhone || undefined,
-      notes: form.notes || undefined,
-      createdAt: new Date().toISOString(),
-      createdBy: user?.id ?? 'staff_001',
-    };
-    addMember(newMember);
-    if (registerPayment) {
-      addPayment({
-        id: `pay_${Date.now()}`,
-        gymId: 'gym_001',
-        memberId: newMember.id,
-        memberNumber,
-        memberName: `${newMember.firstName} ${newMember.lastName}`,
+    try {
+      const created = await addMember({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim() || undefined,
+        birthDate: form.birthDate || undefined,
         membershipId: form.membershipId,
-        membershipName: selectedMs?.name ?? '',
-        amount: form.paymentAmount,
-        method: form.paymentMethod,
-        status: 'confirmed',
-        paymentDate: today,
-        periodStart: form.startDate,
-        periodEnd: expirationDate,
-        registeredBy: `${user?.firstName} ${user?.lastName}`,
+        status: registerPayment ? 'active' : 'pending_activation',
+        startDate: form.startDate,
+        expirationDate,
+        lastPaymentDate: registerPayment ? today : undefined,
+        emergencyContact: form.emergencyContact || undefined,
+        emergencyPhone: form.emergencyPhone || undefined,
+        notes: form.notes || undefined,
+        createdBy: user?.id,
       });
+      if (registerPayment) {
+        await addPayment({
+          memberId: created.id,
+          memberNumber: created.memberNumber,
+          memberName: `${created.firstName} ${created.lastName}`,
+          membershipId: form.membershipId,
+          membershipName: selectedMs?.name ?? '',
+          amount: form.paymentAmount,
+          method: form.paymentMethod,
+          paymentDate: today,
+          periodStart: form.startDate,
+          periodEnd: expirationDate,
+        });
+      }
+      onSuccess?.(created);
+      onClose();
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-    onSuccess?.(newMember);
-    onClose();
   };
 
   return (

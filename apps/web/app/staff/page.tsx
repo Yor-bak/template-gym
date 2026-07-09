@@ -23,7 +23,7 @@ export default function StaffPage() {
   const [form, setForm] = useState<StaffFormData>(emptyStaff);
 
   const canEdit = user?.role === 'admin';
-  const gymStaff = staff.filter(s => s.gymId === 'gym_001' || (s.role !== 'platform_admin' && !s.gymId));
+  const gymStaff = staff;
 
   const openCreate = () => { setForm(emptyStaff); setEditTarget(null); setShowForm(true); };
   const openEdit = (s: Staff) => {
@@ -32,17 +32,15 @@ export default function StaffPage() {
     setShowForm(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.firstName || !form.email) return;
     if (editTarget) {
-      updateStaff(editTarget.id, { firstName: form.firstName, lastName: form.lastName, email: form.email, role: form.role });
+      await updateStaff(editTarget.id, { firstName: form.firstName, lastName: form.lastName, email: form.email, role: form.role });
     } else {
-      addStaff({
-        id: `staff_${Date.now()}`, gymId: 'gym_001',
-        firstName: form.firstName, lastName: form.lastName, email: form.email,
-        role: form.role, active: true, paymentsRegistered: 0, actionsCount: 0,
-        createdAt: new Date().toISOString(),
+      const { tempPassword } = await addStaff({
+        firstName: form.firstName, lastName: form.lastName, email: form.email, role: form.role,
       });
+      window.alert(`Cuenta creada. Contraseña temporal para ${form.email}:\n\n${tempPassword}\n\nCompártela de forma segura — pídele que la cambie al entrar.`);
     }
     setShowForm(false);
   };

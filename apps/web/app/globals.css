@@ -12,11 +12,25 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/*
+ * Marca American Fitness: se remapea toda la escala `blue-*` de Tailwind al
+ * azul marino del logo. Así cada `bg-blue-600`, `text-blue-600`, etc. que ya
+ * usa el dashboard adopta el color de marca sin tocar los componentes.
+ * Los verdes/rojos/amarillos de los badges de estado quedan intactos (son
+ * semánticos: autorizado / rechazado / por vencer).
+ */
+@theme {
+  --color-blue-50: #eef2f8;
+  --color-blue-100: #d8e2f0;
+  --color-blue-200: #b3c6e1;
+  --color-blue-300: #8aa6ce;
+  --color-blue-400: #5b8ad1;
+  --color-blue-500: #2e5a96;
+  --color-blue-600: #16305a;
+  --color-blue-700: #112748;
+  --color-blue-800: #0b1f3a;
+  --color-blue-900: #081226;
+  --color-blue-950: #050c18;
 }
 
 body {

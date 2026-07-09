@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Gradients, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useMyClients } from '@/hooks/use-gym-data';
-import type { Profile } from '@/types/database';
+import type { Member } from '@/types/database';
 
 export default function TrainerClientsScreen() {
   const { profile } = useAuth();
@@ -41,18 +41,19 @@ export default function TrainerClientsScreen() {
   );
 }
 
-function ClientRow({ client }: { client: Profile }) {
+function ClientRow({ client }: { client: Member }) {
+  const fullName = `${client.first_name} ${client.last_name}`;
   return (
     <Pressable onPress={() => router.push(`/(trainer)/client/${client.id}`)}>
       {({ pressed }) => (
         <Card elevated={false} style={[styles.row, { opacity: pressed ? 0.7 : 1 }]}>
           <LinearGradient colors={Gradients.brand} style={styles.avatarPlaceholder}>
             <ThemedText type="smallBold" style={styles.avatarInitial}>
-              {client.full_name.charAt(0).toUpperCase()}
+              {client.first_name.charAt(0).toUpperCase()}
             </ThemedText>
           </LinearGradient>
           <View style={styles.rowText}>
-            <ThemedText type="smallBold">{client.full_name}</ThemedText>
+            <ThemedText type="smallBold">{fullName}</ThemedText>
             {client.phone && (
               <ThemedText themeColor="textSecondary" type="small">
                 {client.phone}

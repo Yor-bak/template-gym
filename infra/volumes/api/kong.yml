@@ -47,6 +47,38 @@ services:
           - /auth/v1/verify
     plugins:
       - name: cors
+        config:
+          origins:
+            - '*'
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+            - HEAD
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - X-Client-Info
+            - X-Supabase-Api-Version
+            - Accept-Profile
+            - Content-Profile
+            - Prefer
+            - Range
+          exposed_headers:
+            - Content-Range
+            - X-Total-Count
+          credentials: true
+          max_age: 3600
   - name: auth-v1-open-callback
     _comment: 'Auth: /auth/v1/callback* -> http://auth:9999/callback*'
     url: http://auth:9999/callback
@@ -57,6 +89,38 @@ services:
           - /auth/v1/callback
     plugins:
       - name: cors
+        config:
+          origins:
+            - '*'
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+            - HEAD
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - X-Client-Info
+            - X-Supabase-Api-Version
+            - Accept-Profile
+            - Content-Profile
+            - Prefer
+            - Range
+          exposed_headers:
+            - Content-Range
+            - X-Total-Count
+          credentials: true
+          max_age: 3600
   - name: auth-v1-open-authorize
     _comment: 'Auth: /auth/v1/authorize* -> http://auth:9999/authorize*'
     url: http://auth:9999/authorize
@@ -67,6 +131,38 @@ services:
           - /auth/v1/authorize
     plugins:
       - name: cors
+        config:
+          origins:
+            - '*'
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+            - HEAD
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - X-Client-Info
+            - X-Supabase-Api-Version
+            - Accept-Profile
+            - Content-Profile
+            - Prefer
+            - Range
+          exposed_headers:
+            - Content-Range
+            - X-Total-Count
+          credentials: true
+          max_age: 3600
   - name: auth-v1-open-jwks
     _comment: 'Auth: /auth/v1/.well-known/jwks.json -> http://auth:9999/.well-known/jwks.json'
     url: http://auth:9999/.well-known/jwks.json
@@ -77,6 +173,38 @@ services:
           - /auth/v1/.well-known/jwks.json
     plugins:
       - name: cors
+        config:
+          origins:
+            - '*'
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+            - HEAD
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - X-Client-Info
+            - X-Supabase-Api-Version
+            - Accept-Profile
+            - Content-Profile
+            - Prefer
+            - Range
+          exposed_headers:
+            - Content-Range
+            - X-Total-Count
+          credentials: true
+          max_age: 3600
 
   ## Auth: rutas protegidas (requieren apikey)
   - name: auth-v1
@@ -89,6 +217,38 @@ services:
           - /auth/v1/
     plugins:
       - name: cors
+        config:
+          origins:
+            - '*'
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+            - HEAD
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - X-Client-Info
+            - X-Supabase-Api-Version
+            - Accept-Profile
+            - Content-Profile
+            - Prefer
+            - Range
+          exposed_headers:
+            - Content-Range
+            - X-Total-Count
+          credentials: true
+          max_age: 3600
       - name: key-auth
         config:
           hide_credentials: false
@@ -118,6 +278,38 @@ services:
           - /rest/v1/
     plugins:
       - name: cors
+        config:
+          origins:
+            - '*'
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+            - HEAD
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - X-Client-Info
+            - X-Supabase-Api-Version
+            - Accept-Profile
+            - Content-Profile
+            - Prefer
+            - Range
+          exposed_headers:
+            - Content-Range
+            - X-Total-Count
+          credentials: true
+          max_age: 3600
       - name: key-auth
         config:
           hide_credentials: false
@@ -147,6 +339,38 @@ services:
           - /storage/v1/
     plugins:
       - name: cors
+        config:
+          origins:
+            - '*'
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+            - HEAD
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - X-Client-Info
+            - X-Supabase-Api-Version
+            - Accept-Profile
+            - Content-Profile
+            - Prefer
+            - Range
+          exposed_headers:
+            - Content-Range
+            - X-Total-Count
+          credentials: true
+          max_age: 3600
       - name: request-transformer
         config:
           add:

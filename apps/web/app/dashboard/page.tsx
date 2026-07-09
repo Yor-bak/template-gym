@@ -10,12 +10,11 @@ import { MemberAvatar } from '@/components/members/MemberAvatar';
 import { useStore } from '@/lib/store';
 import { formatCurrency, formatDate, formatDateTime, daysUntil, daysAgo, timeAgo } from '@/lib/utils';
 
-const TODAY = '2026-07-02';
-const THIS_MONTH = '2026-07';
-
 export default function DashboardPage() {
   const { members, payments, accessLogs } = useStore();
   const router = useRouter();
+  const TODAY = new Date().toISOString().split('T')[0];
+  const THIS_MONTH = TODAY.slice(0, 7);
 
   const metrics = useMemo(() => {
     const active = members.filter(m => m.status === 'active' || m.status === 'temporary_access').length;

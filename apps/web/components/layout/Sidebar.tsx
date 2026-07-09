@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
-import { currentGym } from '@/data/gyms';
+import { useStore } from '@/lib/store';
 
 const navItems = [
   { href: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
@@ -31,13 +31,14 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { gym } = useStore();
 
   const handleLogout = () => { logout(); router.push('/login'); };
 
   const visibleItems = navItems.filter(item => !item.adminOnly || user?.role === 'admin');
 
   return (
-    <aside className="w-60 shrink-0 bg-gray-900 text-white flex flex-col h-screen sticky top-0">
+    <aside className="w-60 shrink-0 bg-gradient-to-b from-[#0B1F3A] to-[#081226] text-white flex flex-col h-screen sticky top-0">
       {/* Gym Header */}
       <div className="px-4 py-5 border-b border-gray-700">
         <div className="flex items-center gap-3">
@@ -45,7 +46,7 @@ export function Sidebar() {
             <Dumbbell className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-sm truncate">{currentGym.name}</p>
+            <p className="font-semibold text-sm truncate">{gym?.name ?? 'Cargando...'}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
               <span className="text-xs text-gray-400">Sistema activo</span>

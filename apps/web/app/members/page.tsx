@@ -34,7 +34,7 @@ function MembersContent() {
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; title: string; desc: string; action: () => void }>({ open: false, title: '', desc: '', action: () => {} });
 
   const filtered = useMemo(() => {
-    let list = members.filter(m => m.gymId === 'gym_001');
+    let list = members;
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(m =>

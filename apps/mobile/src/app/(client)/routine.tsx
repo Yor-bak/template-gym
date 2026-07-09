@@ -6,13 +6,14 @@ import { ThemedView } from '@/components/themed-view';
 import { Card } from '@/components/ui/card';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
-import { useMyRoutine } from '@/hooks/use-gym-data';
+import { useMyMember, useMyRoutine } from '@/hooks/use-gym-data';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function ClientRoutineScreen() {
   const theme = useTheme();
   const { profile } = useAuth();
-  const { data: routine, isLoading } = useMyRoutine(profile?.id);
+  const { data: member } = useMyMember(profile?.id);
+  const { data: routine, isLoading } = useMyRoutine(member?.id);
 
   return (
     <ThemedView style={styles.container}>

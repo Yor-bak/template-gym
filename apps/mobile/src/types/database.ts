@@ -1,8 +1,34 @@
-export type UserRole = 'client' | 'trainer';
-export type SubscriptionStatus = 'active' | 'cancelled';
+export type UserRole = 'client' | 'trainer' | 'admin' | 'receptionist' | 'platform_admin';
+export type MemberStatus =
+  | 'active'
+  | 'expiring_soon'
+  | 'expired'
+  | 'blocked'
+  | 'temporary_access'
+  | 'pending_activation'
+  | 'archived';
+export type MobileAppStatus = 'not_activated' | 'pending' | 'activated' | 'device_linked' | 'suspended';
+
+export interface Gym {
+  id: string;
+  name: string;
+  slug: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  timezone: string;
+  currency: 'MXN' | 'USD';
+  member_prefix: string;
+  logo_url: string | null;
+  primary_color: string | null;
+  active: boolean;
+  subscription_status: 'active' | 'trial' | 'suspended' | 'cancelled';
+  created_at: string;
+}
 
 export interface Profile {
   id: string;
+  gym_id: string | null;
   role: UserRole;
   full_name: string;
   phone: string | null;
@@ -10,18 +36,54 @@ export interface Profile {
   created_at: string;
 }
 
-export interface Subscription {
+export interface MembershipPlan {
   id: string;
-  client_id: string;
-  status: SubscriptionStatus;
-  start_date: string;
-  end_date: string | null;
+  gym_id: string;
+  name: string;
+  price: number;
+  duration: number;
+  duration_unit: 'days' | 'weeks' | 'months' | 'years';
+  tolerance_days: number;
+  description: string | null;
+  active: boolean;
+  allows_multi_branch_access: boolean;
+  created_at: string;
+}
+
+export interface Member {
+  id: string;
+  gym_id: string;
+  profile_id: string | null;
+  member_number: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email: string | null;
+  birth_date: string | null;
+  photo_url: string | null;
+  membership_plan_id: string | null;
+  status: MemberStatus;
+  start_date: string | null;
+  expiration_date: string | null;
+  last_payment_date: string | null;
+  blocked_at: string | null;
+  blocked_by: string | null;
+  block_reason: string | null;
+  temporary_access_until: string | null;
+  temporary_access_by: string | null;
+  temporary_access_reason: string | null;
+  mobile_app_status: MobileAppStatus;
+  activation_code: string | null;
+  emergency_contact: string | null;
+  emergency_phone: string | null;
+  notes: string | null;
+  created_by: string | null;
   created_at: string;
 }
 
 export interface ClientAccessCode {
   id: string;
-  client_id: string;
+  member_id: string;
   code: string;
   active: boolean;
   created_at: string;
@@ -54,32 +116,45 @@ export interface RoutineExercise {
   notes: string | null;
 }
 
+export type AccessResult =
+  | 'authorized'
+  | 'expiring_soon'
+  | 'expired'
+  | 'blocked'
+  | 'invalid_qr'
+  | 'temporary_access'
+  | 'manual';
+
 export interface AccessLog {
   id: string;
-  client_id: string;
+  gym_id: string;
+  member_id: string | null;
+  result: AccessResult;
+  reader: string;
+  raw_qr_code: string | null;
   scanned_at: string;
 }
 
-// Tipo mínimo compatible con el genérico de supabase-js; se puede reemplazar
-// por el output de `supabase gen types typescript` cuando el proyecto esté enlazado.
-export interface Database {
-  public: {
-    Tables: {
-      profiles: { Row: Profile; Insert: Partial<Profile>; Update: Partial<Profile> };
-      subscriptions: { Row: Subscription; Insert: Partial<Subscription>; Update: Partial<Subscription> };
-      client_access_codes: {
-        Row: ClientAccessCode;
-        Insert: Partial<ClientAccessCode>;
-        Update: Partial<ClientAccessCode>;
-      };
-      trainer_clients: { Row: TrainerClient; Insert: Partial<TrainerClient>; Update: Partial<TrainerClient> };
-      routines: { Row: Routine; Insert: Partial<Routine>; Update: Partial<Routine> };
-      routine_exercises: {
-        Row: RoutineExercise;
-        Insert: Partial<RoutineExercise>;
-        Update: Partial<RoutineExercise>;
-      };
-      access_logs: { Row: AccessLog; Insert: Partial<AccessLog>; Update: Partial<AccessLog> };
-    };
-  };
+export type PaymentMethod = 'cash' | 'card' | 'transfer' | 'other';
+export type PaymentStatus = 'confirmed' | 'cancelled' | 'corrected' | 'pending';
+
+export interface Payment {
+  id: string;
+  gym_id: string;
+  member_id: string;
+  membership_plan_id: string | null;
+  amount: number;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  payment_date: string;
+  period_start: string;
+  period_end: string;
+  reference: string | null;
+  notes: string | null;
+  registered_by: string | null;
+  cancelled_by: string | null;
+  cancel_reason: string | null;
+  cancelled_at: string | null;
+  correction_of: string | null;
+  created_at: string;
 }

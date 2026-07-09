@@ -11,11 +11,17 @@ import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDate, getPaymentMethodLabel, getPaymentStatusLabel } from '@/lib/utils';
 
-const TODAY = '2026-07-02';
-const THIS_MONTH = '2026-07';
-const THIS_WEEK_START = '2026-06-29';
+function toISODate(d: Date) {
+  return d.toISOString().split('T')[0];
+}
 
 export default function PaymentsPage() {
+  const now = new Date();
+  const TODAY = toISODate(now);
+  const THIS_MONTH = TODAY.slice(0, 7);
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - 6);
+  const THIS_WEEK_START = toISODate(weekStart);
   const { payments, cancelPayment } = useStore();
   const { user } = useAuth();
   const [search, setSearch] = useState('');
@@ -26,7 +32,7 @@ export default function PaymentsPage() {
   const [cancelReason, setCancelReason] = useState('');
 
   const filtered = useMemo(() => {
-    let list = payments.filter(p => p.gymId === 'gym_001');
+    let list = payments;
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(p => p.memberName.toLowerCase().includes(q) || p.memberNumber.toLowerCase().includes(q));

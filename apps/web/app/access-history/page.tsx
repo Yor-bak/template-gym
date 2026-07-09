@@ -16,7 +16,7 @@ export default function AccessHistoryPage() {
   const [resultFilter, setResultFilter] = useState('');
 
   const filtered = useMemo(() => {
-    let list = accessLogs.filter(a => a.gymId === 'gym_001');
+    let list = accessLogs;
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(a => a.memberName?.toLowerCase().includes(q) || a.memberNumber?.toLowerCase().includes(q));

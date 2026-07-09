@@ -1,41 +1,116 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Staff } from '@/types';
-import { staff } from '@/data/staff';
+import type { Session } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
-const SESSION_KEY = 'tg_user_id';
+import { supabase } from './supabase';
 
-interface AuthContext {
-  user: Staff | null;
-  login: (email: string, password: string) => boolean;
+// Roles que pueden entrar al dashboard. client/trainer solo existen para la
+// app móvil — si alguien con esas credenciales intenta entrar aquí, se rechaza.
+const STAFF_ROLES = ['admin', 'receptionist', 'platform_admin'] as const;
+type StaffRole = (typeof STAFF_ROLES)[number];
+
+export interface AuthUser {
+  id: string;
+  gymId: string | null;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: StaffRole;
+}
+
+interface AuthContextValue {
+  user: AuthUser | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<{ error: string | null }>;
   logout: () => void;
 }
 
-const AuthCtx = createContext<AuthContext | null>(null);
+const AuthCtx = createContext<AuthContextValue | null>(null);
+
+function splitName(fullName: string) {
+  const [firstName, ...rest] = fullName.trim().split(' ');
+  return { firstName: firstName ?? '', lastName: rest.join(' ') };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<Staff | null>(() => {
-    if (typeof window === 'undefined') return null;
-    const id = sessionStorage.getItem(SESSION_KEY);
-    return id ? (staff.find(s => s.id === id) ?? null) : null;
-  });
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const login = (email: string, password: string): boolean => {
-    const found = staff.find(s => s.email === email && s.password === password && s.active);
-    if (found) {
-      sessionStorage.setItem(SESSION_KEY, found.id);
-      setUser(found);
-      return true;
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setIsLoading(false);
+    });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+
+    return () => subscription.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session?.user) {
+      setUser(null);
+      return;
     }
-    return false;
+
+    let cancelled = false;
+
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single()
+      .then(({ data }) => {
+        if (cancelled || !data || !STAFF_ROLES.includes(data.role) || !data.active) return;
+        const { firstName, lastName } = splitName(data.full_name);
+        setUser({
+          id: data.id,
+          gymId: data.gym_id,
+          firstName,
+          lastName,
+          email: session.user.email ?? '',
+          role: data.role,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user]);
+
+  const login = async (email: string, password: string): Promise<{ error: string | null }> => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.session) {
+      return { error: error?.message ?? 'No se pudo iniciar sesión.' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, active')
+      .eq('id', data.session.user.id)
+      .single();
+
+    if (!profile || !STAFF_ROLES.includes(profile.role)) {
+      await supabase.auth.signOut();
+      return { error: 'Esta cuenta no tiene acceso al panel de administración.' };
+    }
+
+    if (!profile.active) {
+      await supabase.auth.signOut();
+      return { error: 'Esta cuenta está desactivada. Contacta a un administrador.' };
+    }
+
+    return { error: null };
   };
 
   const logout = () => {
-    sessionStorage.removeItem(SESSION_KEY);
-    setUser(null);
+    supabase.auth.signOut();
   };
 
-  return <AuthCtx.Provider value={{ user, login, logout }}>{children}</AuthCtx.Provider>;
+  return <AuthCtx.Provider value={{ user, isLoading, login, logout }}>{children}</AuthCtx.Provider>;
 }
 
 export function useAuth() {

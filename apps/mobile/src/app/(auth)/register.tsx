@@ -11,31 +11,54 @@ import { Card } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Gradients, Shadows, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
+import { supabase } from '@/lib/supabase';
 
-// El registro desde la app es solo para clientes. Las cuentas de entrenador
-// las crea el admin desde el dashboard web (vía la API de administración de
-// Supabase), no hay auto-registro de entrenadores.
-export default function RegisterScreen() {
-  const { signUp } = useAuth();
+// La cuenta de cliente no se auto-registra: el staff da de alta al miembro en
+// recepción y le entrega un código de activación de 8 caracteres. Aquí solo
+// se valida ese código (paso 1) y se define correo/contraseña (paso 2).
+export default function ActivateAccountScreen() {
+  const { activateAccount } = useAuth();
 
-  const [fullName, setFullName] = useState('');
+  const [step, setStep] = useState<1 | 2>(1);
+  const [code, setCode] = useState('');
+  const [memberFirstName, setMemberFirstName] = useState('');
+  const [gymName, setGymName] = useState('');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit() {
+  async function handleLookupCode() {
     setError(null);
     setLoading(true);
-    const { error: signUpError } = await signUp({
+    const { data, error: lookupError } = await supabase
+      .rpc('lookup_activation_code', { p_code: code.trim().toUpperCase() })
+      .maybeSingle<{ first_name: string; gym_name: string }>();
+    setLoading(false);
+
+    if (lookupError || !data) {
+      setError('Código de activación inválido o ya utilizado. Verifícalo con el gym.');
+      return;
+    }
+
+    setMemberFirstName(data.first_name);
+    setGymName(data.gym_name);
+    setStep(2);
+  }
+
+  async function handleActivate() {
+    setError(null);
+    setLoading(true);
+    const { error: activateError } = await activateAccount({
       email: email.trim(),
       password,
-      fullName: fullName.trim(),
-      role: 'client',
+      activationCode: code.trim().toUpperCase(),
     });
     setLoading(false);
-    if (signUpError) {
-      setError(signUpError);
+    if (activateError) {
+      setError(activateError);
       return;
     }
     router.replace('/(auth)');
@@ -51,44 +74,78 @@ export default function RegisterScreen() {
           <LinearGradient colors={Gradients.brand} style={styles.hero}>
             <SafeAreaView edges={['top']}>
               <ThemedText type="title" style={styles.heroTitle}>
-                Crea tu cuenta
+                Activa tu cuenta
               </ThemedText>
               <ThemedText type="default" style={styles.heroSubtitle}>
-                Regístrate como cliente del gym
+                {step === 1
+                  ? 'Ingresa el código que te dio el gym al inscribirte'
+                  : `¡Hola ${memberFirstName}! Activa tu cuenta en ${gymName}`}
               </ThemedText>
             </SafeAreaView>
           </LinearGradient>
 
           <Card style={[styles.formCard, Shadows.floating]}>
-            <TextField label="Nombre completo" value={fullName} onChangeText={setFullName} placeholder="Tu nombre" />
-            <TextField
-              label="Correo electrónico"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              placeholder="tucorreo@ejemplo.com"
-            />
-            <TextField
-              label="Contraseña"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholder="Mínimo 6 caracteres"
-            />
-
-            {error && (
-              <ThemedText themeColor="danger" type="small">
-                {error}
-              </ThemedText>
+            {step === 1 ? (
+              <>
+                <TextField
+                  label="Código de activación"
+                  value={code}
+                  onChangeText={setCode}
+                  autoCapitalize="characters"
+                  placeholder="Ej. A1B2C3D4"
+                />
+                {error && (
+                  <ThemedText themeColor="danger" type="small">
+                    {error}
+                  </ThemedText>
+                )}
+                <Button
+                  label="Continuar"
+                  onPress={handleLookupCode}
+                  loading={loading}
+                  disabled={code.trim().length < 4}
+                />
+              </>
+            ) : (
+              <>
+                <TextField
+                  label="Correo electrónico"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  placeholder="tucorreo@ejemplo.com"
+                />
+                <TextField
+                  label="Contraseña"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  placeholder="Mínimo 6 caracteres"
+                />
+                {error && (
+                  <ThemedText themeColor="danger" type="small">
+                    {error}
+                  </ThemedText>
+                )}
+                <Button
+                  label="Activar cuenta"
+                  onPress={handleActivate}
+                  loading={loading}
+                  disabled={!email || password.length < 6}
+                />
+                <ThemedText
+                  type="link"
+                  themeColor="textSecondary"
+                  style={styles.backLink}
+                  onPress={() => {
+                    setStep(1);
+                    setError(null);
+                  }}>
+                  Usar otro código
+                </ThemedText>
+              </>
             )}
-
-            <Button
-              label="Registrarme"
-              onPress={handleSubmit}
-              loading={loading}
-              disabled={!fullName || !email || password.length < 6}
-            />
           </Card>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -121,5 +178,9 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     gap: Spacing.three,
     marginBottom: Spacing.four,
+  },
+  backLink: {
+    textAlign: 'center',
+    marginTop: Spacing.one,
   },
 });

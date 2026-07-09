@@ -1,6 +1,7 @@
 'use client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useCallback } from 'react';
-import { Monitor, RefreshCw, UserCheck, DoorOpen, ShieldOff, Wifi } from 'lucide-react';
+import { Monitor } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
 import { AccessPopup } from '@/components/access/AccessPopup';
@@ -8,78 +9,91 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MemberAvatar } from '@/components/members/MemberAvatar';
 import { ConnectionIndicator } from '@/components/shared/ConnectionIndicator';
 import { useStore } from '@/lib/store';
-import { useAuth } from '@/lib/auth';
-import { formatTime, daysUntil, daysAgo } from '@/lib/utils';
-import type { AccessLog, Member } from '@/types';
+import { supabase } from '@/lib/supabase';
+import { daysUntil } from '@/lib/utils';
+import type { AccessLog } from '@/types';
 
-const TODAY = '2026-07-02';
-
-function simulateAccess(member: Member, staffName: string): AccessLog {
-  const now = new Date().toISOString();
-  const days = daysUntil(member.expirationDate);
-  let result: AccessLog['result'];
-  if (member.status === 'blocked') result = 'blocked';
-  else if (member.status === 'expired') result = 'expired';
-  else if (member.status === 'temporary_access') result = 'temporary_access';
-  else if (days <= 5) result = 'expiring_soon';
-  else result = 'authorized';
-
-  return {
-    id: `acc_sim_${Date.now()}`,
-    gymId: 'gym_001',
-    memberId: member.id,
-    memberNumber: member.memberNumber,
-    memberName: `${member.firstName} ${member.lastName}`,
-    membershipName: 'Membresía',
-    result,
-    timestamp: now,
-    reader: 'Entrada principal',
-    membershipExpirationDate: member.expirationDate,
-    daysUntilExpiration: days >= 0 ? days : undefined,
-    daysSinceExpiration: days < 0 ? Math.abs(days) : undefined,
-    lastPaymentDate: member.lastPaymentDate,
-    blockReason: member.blockReason,
-  };
+interface RpcAccessLog {
+  id: string;
+  gym_id: string;
+  member_id: string | null;
+  result: AccessLog['result'];
+  reader: string;
+  raw_qr_code: string | null;
+  scanned_at: string;
 }
 
 export default function AccessMonitorPage() {
-  const { members, accessLogs, addAccessLog } = useStore();
-  const { user } = useAuth();
+  const { members, memberships, accessLogs } = useStore();
+  const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   const [activePopup, setActivePopup] = useState<AccessLog | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const [connected, setConnected] = useState(true);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })), 1000);
     return () => clearInterval(t);
   }, []);
 
+  const today = new Date().toISOString().split('T')[0];
   const localLogs = accessLogs.slice(0, 20);
-  const todayAuthorized = localLogs.filter(a => a.timestamp.startsWith(TODAY) && ['authorized', 'expiring_soon', 'temporary_access'].includes(a.result)).length;
-  const todayRejected = localLogs.filter(a => a.timestamp.startsWith(TODAY) && ['expired', 'blocked', 'invalid_qr'].includes(a.result)).length;
+  const todayAuthorized = localLogs.filter(a => a.timestamp.startsWith(today) && ['authorized', 'expiring_soon', 'temporary_access'].includes(a.result)).length;
+  const todayRejected = localLogs.filter(a => a.timestamp.startsWith(today) && ['expired', 'blocked', 'invalid_qr'].includes(a.result)).length;
 
-  const handleSimulateScan = useCallback(() => {
-    if (!selectedMemberId) {
-      // Simulate invalid QR
-      const log: AccessLog = {
-        id: `acc_invalid_${Date.now()}`,
-        gymId: 'gym_001',
-        result: 'invalid_qr',
-        timestamp: new Date().toISOString(),
-        reader: 'Entrada principal',
-        rawQrCode: `QR-SIM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-      };
-      addAccessLog(log);
-      setActivePopup(log);
-      return;
+  const handleSimulateScan = useCallback(async () => {
+    if (!connected || scanning) return;
+    setScanning(true);
+    try {
+      const member = selectedMemberId ? members.find(m => m.id === selectedMemberId) : undefined;
+      let code = `QR-SIM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+      if (member) {
+        const { data: accessCode } = await supabase
+          .from('client_access_codes')
+          .select('code')
+          .eq('member_id', member.id)
+          .eq('active', true)
+          .maybeSingle();
+        if (accessCode) code = accessCode.code;
+      }
+
+      const { data: rpcResult, error } = await supabase
+        .rpc('validate_access', { p_code: code, p_reader: 'Entrada principal' })
+        .single<RpcAccessLog>();
+
+      if (error || !rpcResult) return;
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['access-logs'] }),
+        queryClient.invalidateQueries({ queryKey: ['members'] }),
+      ]);
+
+      const days = member?.expirationDate ? daysUntil(member.expirationDate) : undefined;
+      const membership = member ? memberships.find(ms => ms.id === member.membershipId) : undefined;
+
+      setActivePopup({
+        id: rpcResult.id,
+        gymId: rpcResult.gym_id,
+        memberId: rpcResult.member_id ?? undefined,
+        memberNumber: member?.memberNumber,
+        memberName: member ? `${member.firstName} ${member.lastName}` : undefined,
+        membershipName: membership?.name,
+        result: rpcResult.result,
+        timestamp: rpcResult.scanned_at,
+        reader: rpcResult.reader,
+        membershipExpirationDate: member?.expirationDate,
+        daysUntilExpiration: days != null && days >= 0 ? days : undefined,
+        daysSinceExpiration: days != null && days < 0 ? Math.abs(days) : undefined,
+        lastPaymentDate: member?.lastPaymentDate,
+        blockReason: member?.blockReason,
+        rawQrCode: rpcResult.raw_qr_code ?? undefined,
+      });
+    } finally {
+      setScanning(false);
     }
-    const member = members.find(m => m.id === selectedMemberId);
-    if (!member) return;
-    const log = simulateAccess(member, `${user?.firstName} ${user?.lastName}`);
-    addAccessLog(log);
-    setActivePopup(log);
-  }, [selectedMemberId, members, user, addAccessLog]);
+  }, [connected, scanning, selectedMemberId, members, memberships, queryClient]);
 
   const activeMembers = members.filter(m => m.status !== 'archived');
 
@@ -133,11 +147,11 @@ export default function AccessMonitorPage() {
             </select>
             <button
               onClick={handleSimulateScan}
-              disabled={!connected}
+              disabled={!connected || scanning}
               className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
             >
               <Monitor className="w-4 h-4" />
-              Simular escaneo
+              {scanning ? 'Escaneando...' : 'Simular escaneo'}
             </button>
           </div>
           {!connected && (
@@ -185,7 +199,6 @@ export default function AccessMonitorPage() {
         onClose={() => setActivePopup(null)}
         autoCloseSecs={6}
         onRegisterPayment={(memberId) => {
-          // Navigate to member profile to register payment
           window.location.href = `/members/${memberId}`;
         }}
         onTemporaryAccess={(memberId) => {
