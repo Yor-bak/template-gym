@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* La app usa una paleta clara en todos sus componentes; fijamos el esquema
+     para que el modo oscuro del sistema no vuelva ilegible el texto. */
+  color-scheme: light;
 }
 
 @theme inline {
@@ -37,4 +40,10 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer components {
+  .input {
+    @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
 }

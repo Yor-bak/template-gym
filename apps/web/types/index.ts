@@ -4,3 +4,4 @@ export * from './membership';
 export * from './payment';
 export * from './access';
 export * from './staff';
+export * from './inventory';

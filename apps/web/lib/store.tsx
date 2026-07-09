@@ -1,8 +1,9 @@
 'use client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
-import type { AccessLog, Gym, Member, Membership, Payment, Staff } from '@/types';
+import type { AccessLog, Gym, InventoryItem, Member, Membership, Payment, Staff } from '@/types';
+import { inventory as initialInventory } from '@/data/inventory';
 import { useAuth } from './auth';
 import { supabase } from './supabase';
 
@@ -129,6 +130,10 @@ interface AppStore {
   accessLogs: AccessLog[];
   memberships: Membership[];
   staff: Staff[];
+  // El inventario todavía no tiene tabla propia en Supabase — vive como
+  // estado local sembrado de apps/web/data/inventory.ts. Conectarlo a un
+  // backend real (tabla inventory_items + RLS) queda como pendiente.
+  inventory: InventoryItem[];
   isLoading: boolean;
   addMember: (input: Partial<Member>) => Promise<Member>;
   updateMember: (id: string, updates: Partial<Member>) => Promise<void>;
@@ -139,6 +144,9 @@ interface AppStore {
   addMembership: (input: Partial<Membership>) => Promise<Membership>;
   addStaff: (input: Partial<Staff>) => Promise<{ tempPassword: string }>;
   updateStaff: (id: string, updates: Partial<Staff>) => Promise<void>;
+  addInventoryItem: (item: InventoryItem) => void;
+  updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
+  deleteInventoryItem: (id: string) => void;
 }
 
 const StoreContext = createContext<AppStore | null>(null);
@@ -631,6 +639,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     await invalidate('staff-profiles');
   };
 
+  const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
+
+  const addInventoryItem = useCallback((item: InventoryItem) => {
+    setInventory((prev) => [item, ...prev]);
+  }, []);
+
+  const updateInventoryItem = useCallback((id: string, updates: Partial<InventoryItem>) => {
+    setInventory((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  }, []);
+
+  const deleteInventoryItem = useCallback((id: string) => {
+    setInventory((prev) => prev.filter((i) => i.id !== id));
+  }, []);
+
   const isLoading =
     profilesQuery.isLoading || membersQuery.isLoading || plansQuery.isLoading || paymentsQuery.isLoading;
 
@@ -643,6 +665,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         accessLogs,
         memberships,
         staff,
+        inventory,
         isLoading,
         addMember,
         updateMember,
@@ -653,6 +676,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         addMembership,
         addStaff,
         updateStaff,
+        addInventoryItem,
+        updateInventoryItem,
+        deleteInventoryItem,
       }}>
       {children}
     </StoreContext.Provider>
