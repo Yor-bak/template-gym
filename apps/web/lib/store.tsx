@@ -2,7 +2,19 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useContext, useMemo } from 'react';
 
-import type { AccessLog, Gym, InventoryItem, Member, Membership, Payment, Staff } from '@/types';
+import type {
+  AccessLog,
+  Gym,
+  InventoryItem,
+  Member,
+  Membership,
+  Payment,
+  Routine,
+  RoutineExercise,
+  Staff,
+  Trainer,
+  TrainerAssignment,
+} from '@/types';
 import { useAuth } from './auth';
 import { supabase } from './supabase';
 
@@ -140,6 +152,33 @@ interface DbInventoryItem {
   created_at: string;
 }
 
+interface DbTrainerClient {
+  id: string;
+  trainer_id: string;
+  client_id: string;
+  assigned_at: string;
+}
+
+interface DbRoutine {
+  id: string;
+  trainer_id: string | null;
+  client_id: string | null;
+  title: string;
+  goal: string | null;
+  created_at: string;
+}
+
+interface DbRoutineExercise {
+  id: string;
+  routine_id: string;
+  name: string;
+  sets: number;
+  reps: string;
+  rest_seconds: number | null;
+  order_index: number;
+  notes: string | null;
+}
+
 function randomCode(length = 8) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
@@ -158,6 +197,12 @@ interface AppStore {
   // estado local sembrado de apps/web/data/inventory.ts. Conectarlo a un
   // backend real (tabla inventory_items + RLS) queda como pendiente.
   inventory: InventoryItem[];
+  trainers: Trainer[];
+  trainerAssignments: TrainerAssignment[];
+  // Solo las rutinas genéricas (sin cliente asignado) se gestionan desde el
+  // dashboard. Las personalizadas por cliente siguen siendo trabajo del
+  // entrenador, desde la app móvil.
+  genericRoutines: Routine[];
   isLoading: boolean;
   addMember: (input: Partial<Member>) => Promise<Member>;
   updateMember: (id: string, updates: Partial<Member>) => Promise<void>;
@@ -166,11 +211,24 @@ interface AppStore {
   addAccessLog: (log: Partial<AccessLog>) => Promise<void>;
   updateMembership: (id: string, updates: Partial<Membership>) => Promise<void>;
   addMembership: (input: Partial<Membership>) => Promise<Membership>;
-  addStaff: (input: Partial<Staff>) => Promise<{ tempPassword: string }>;
+  // No se tipa con Staff['role'] porque también se usa para crear
+  // entrenadores (rol 'trainer'), que no forman parte del tipo Staff.
+  addStaff: (input: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    role: Staff['role'] | 'trainer';
+  }) => Promise<{ tempPassword: string }>;
   updateStaff: (id: string, updates: Partial<Staff>) => Promise<void>;
   addInventoryItem: (item: InventoryItem) => void;
   updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
   deleteInventoryItem: (id: string) => void;
+  assignTrainer: (clientId: string, trainerId: string) => Promise<void>;
+  unassignTrainer: (clientId: string) => Promise<void>;
+  addGenericRoutine: (input: { title: string; goal?: string }) => Promise<Routine>;
+  updateGenericRoutine: (id: string, updates: { title?: string; goal?: string }) => Promise<void>;
+  deleteGenericRoutine: (id: string) => Promise<void>;
+  replaceRoutineExercises: (routineId: string, exercises: Omit<RoutineExercise, 'id' | 'routineId'>[]) => Promise<void>;
 }
 
 const StoreContext = createContext<AppStore | null>(null);
@@ -261,6 +319,48 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .from('inventory_items')
         .select('*')
         .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const trainerClientsQuery = useQuery({
+    queryKey: ['trainer-clients', gymId, user?.role],
+    enabled,
+    queryFn: async (): Promise<DbTrainerClient[]> => {
+      const { data, error } = await supabase.from('trainer_clients').select('*');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const genericRoutinesQuery = useQuery({
+    queryKey: ['generic-routines', gymId, user?.role],
+    enabled,
+    queryFn: async (): Promise<DbRoutine[]> => {
+      const { data, error } = await supabase
+        .from('routines')
+        .select('*')
+        .is('client_id', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const genericRoutineIds = (genericRoutinesQuery.data ?? []).map((r) => r.id).join(',');
+
+  const genericRoutineExercisesQuery = useQuery({
+    queryKey: ['generic-routine-exercises', genericRoutineIds],
+    enabled: enabled && !!genericRoutineIds,
+    queryFn: async (): Promise<DbRoutineExercise[]> => {
+      const ids = genericRoutineIds.split(',').filter(Boolean);
+      if (!ids.length) return [];
+      const { data, error } = await supabase
+        .from('routine_exercises')
+        .select('*')
+        .in('routine_id', ids)
+        .order('order_index');
       if (error) throw error;
       return data ?? [];
     },
@@ -449,6 +549,61 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         notes: i.notes ?? undefined,
       })),
     [inventoryQuery.data]
+  );
+
+  const trainers: Trainer[] = useMemo(
+    () =>
+      (profilesQuery.data ?? [])
+        .filter((p) => p.role === 'trainer')
+        .map((p) => {
+          const { firstName, lastName } = splitName(p.full_name);
+          return {
+            id: p.id,
+            gymId: p.gym_id,
+            firstName,
+            lastName,
+            email: p.email ?? '',
+            phone: p.phone ?? undefined,
+          };
+        }),
+    [profilesQuery.data]
+  );
+
+  const trainerAssignments: TrainerAssignment[] = useMemo(
+    () =>
+      (trainerClientsQuery.data ?? []).map((tc) => ({
+        id: tc.id,
+        trainerId: tc.trainer_id,
+        clientId: tc.client_id,
+        assignedAt: tc.assigned_at,
+      })),
+    [trainerClientsQuery.data]
+  );
+
+  const genericRoutines: Routine[] = useMemo(
+    () =>
+      (genericRoutinesQuery.data ?? []).map((r) => ({
+        id: r.id,
+        trainerId: r.trainer_id ?? undefined,
+        clientId: r.client_id ?? undefined,
+        title: r.title,
+        goal: r.goal ?? undefined,
+        createdAt: r.created_at,
+        exercises: (genericRoutineExercisesQuery.data ?? [])
+          .filter((e) => e.routine_id === r.id)
+          .sort((a, b) => a.order_index - b.order_index)
+          .map((e) => ({
+            id: e.id,
+            routineId: e.routine_id,
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            restSeconds: e.rest_seconds ?? undefined,
+            orderIndex: e.order_index,
+            notes: e.notes ?? undefined,
+          })),
+      })),
+    [genericRoutinesQuery.data, genericRoutineExercisesQuery.data]
   );
 
   const STAFF_ROLES = ['admin', 'receptionist', 'platform_admin'];
@@ -780,6 +935,74 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
   };
 
+  const assignTrainer: AppStore['assignTrainer'] = async (clientId, trainerId) => {
+    const { error } = await supabase
+      .from('trainer_clients')
+      .upsert({ client_id: clientId, trainer_id: trainerId }, { onConflict: 'client_id' });
+    if (error) throw error;
+    await invalidate('trainer-clients');
+  };
+
+  const unassignTrainer: AppStore['unassignTrainer'] = async (clientId) => {
+    const { error } = await supabase.from('trainer_clients').delete().eq('client_id', clientId);
+    if (error) throw error;
+    await invalidate('trainer-clients');
+  };
+
+  const addGenericRoutine: AppStore['addGenericRoutine'] = async (input) => {
+    const { data, error } = await supabase
+      .from('routines')
+      .insert({ client_id: null, trainer_id: null, title: input.title, goal: input.goal || null })
+      .select()
+      .single();
+    if (error) throw error;
+    await invalidate('generic-routines');
+    return {
+      id: data.id,
+      title: data.title,
+      goal: data.goal ?? undefined,
+      createdAt: data.created_at,
+      exercises: [],
+    };
+  };
+
+  const updateGenericRoutine: AppStore['updateGenericRoutine'] = async (id, updates) => {
+    const payload: Record<string, unknown> = {};
+    if ('title' in updates) payload.title = updates.title;
+    if ('goal' in updates) payload.goal = updates.goal || null;
+    const { error } = await supabase.from('routines').update(payload).eq('id', id);
+    if (error) throw error;
+    await invalidate('generic-routines');
+  };
+
+  const deleteGenericRoutine: AppStore['deleteGenericRoutine'] = async (id) => {
+    const { error } = await supabase.from('routines').delete().eq('id', id);
+    if (error) throw error;
+    await Promise.all([invalidate('generic-routines'), invalidate('generic-routine-exercises')]);
+  };
+
+  const replaceRoutineExercises: AppStore['replaceRoutineExercises'] = async (routineId, exercises) => {
+    const { error: deleteError } = await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
+    if (deleteError) throw deleteError;
+
+    if (exercises.length) {
+      const { error: insertError } = await supabase.from('routine_exercises').insert(
+        exercises.map((e, index) => ({
+          routine_id: routineId,
+          name: e.name,
+          sets: e.sets,
+          reps: e.reps,
+          rest_seconds: e.restSeconds ?? null,
+          order_index: index,
+          notes: e.notes || null,
+        }))
+      );
+      if (insertError) throw insertError;
+    }
+
+    await invalidate('generic-routine-exercises');
+  };
+
   const isLoading =
     profilesQuery.isLoading || membersQuery.isLoading || plansQuery.isLoading || paymentsQuery.isLoading;
 
@@ -793,6 +1016,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         memberships,
         staff,
         inventory,
+        trainers,
+        trainerAssignments,
+        genericRoutines,
         isLoading,
         addMember,
         updateMember,
@@ -806,6 +1032,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         addInventoryItem,
         updateInventoryItem,
         deleteInventoryItem,
+        assignTrainer,
+        unassignTrainer,
+        addGenericRoutine,
+        updateGenericRoutine,
+        deleteGenericRoutine,
+        replaceRoutineExercises,
       }}>
       {children}
     </StoreContext.Provider>

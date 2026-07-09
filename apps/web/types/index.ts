@@ -5,3 +5,5 @@ export * from './payment';
 export * from './access';
 export * from './staff';
 export * from './inventory';
+export * from './trainer';
+export * from './routine';

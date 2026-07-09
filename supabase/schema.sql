@@ -657,6 +657,39 @@ create policy "routine_exercises_update_trainer" on public.routine_exercises
 create policy "routine_exercises_delete_trainer" on public.routine_exercises
   for delete using (public.routine_trainer(routine_id) = auth.uid());
 
+-- El staff no tenía ninguna policy sobre routines/routine_exercises (solo el
+-- propio entrenador). Se agrega: staff puede LEER cualquier rutina de su
+-- sucursal (genérica o de un cliente), y el admin puede ESCRIBIR únicamente
+-- las genéricas (client_id is null) — las personalizadas de un cliente
+-- siguen siendo trabajo exclusivo del entrenador, desde la app.
+create policy "routines_select_staff" on public.routines
+  for select using (
+    public.my_role() in ('admin', 'receptionist', 'platform_admin')
+    and (
+      client_id is null
+      or public.member_gym(client_id) = public.my_gym_id()
+      or public.my_role() = 'platform_admin'
+    )
+  );
+
+create policy "routines_write_admin_generic" on public.routines
+  for all using (client_id is null and public.my_role() in ('admin', 'platform_admin'))
+  with check (client_id is null and public.my_role() in ('admin', 'platform_admin'));
+
+create policy "routine_exercises_select_staff" on public.routine_exercises
+  for select using (
+    public.my_role() in ('admin', 'receptionist', 'platform_admin')
+    and (
+      public.routine_member(routine_id) is null
+      or public.member_gym(public.routine_member(routine_id)) = public.my_gym_id()
+      or public.my_role() = 'platform_admin'
+    )
+  );
+
+create policy "routine_exercises_write_admin_generic" on public.routine_exercises
+  for all using (public.routine_member(routine_id) is null and public.my_role() in ('admin', 'platform_admin'))
+  with check (public.routine_member(routine_id) is null and public.my_role() in ('admin', 'platform_admin'));
+
 -- payments
 create policy "payments_select_own" on public.payments
   for select using (member_id in (select public.my_member_ids()));
