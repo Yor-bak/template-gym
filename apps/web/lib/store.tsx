@@ -1,9 +1,8 @@
 'use client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 
 import type { AccessLog, Gym, InventoryItem, Member, Membership, Payment, Staff } from '@/types';
-import { inventory as initialInventory } from '@/data/inventory';
 import { useAuth } from './auth';
 import { supabase } from './supabase';
 
@@ -116,6 +115,31 @@ interface DbAccessLog {
   scanned_at: string;
 }
 
+interface DbInventoryItem {
+  id: string;
+  gym_id: string;
+  area: InventoryItem['area'];
+  name: string;
+  brand: string | null;
+  model: string | null;
+  serial_number: string | null;
+  sku: string | null;
+  quantity: number;
+  min_stock: number | null;
+  unit_measure: string | null;
+  location: string | null;
+  status: InventoryItem['status'];
+  purchase_date: string | null;
+  purchase_price: number | null;
+  repair_price: number | null;
+  sale_price: number | null;
+  supplier: string | null;
+  last_maintenance: string | null;
+  next_maintenance: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 function randomCode(length = 8) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
@@ -224,6 +248,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .order('scanned_at', { ascending: false })
         .limit(300);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const inventoryQuery = useQuery({
+    queryKey: ['inventory-items', gymId, user?.role],
+    enabled,
+    queryFn: async (): Promise<DbInventoryItem[]> => {
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .select('*')
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
@@ -384,6 +421,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         };
       }),
     [accessLogsQuery.data, membersById, plansById]
+  );
+
+  const inventory: InventoryItem[] = useMemo(
+    () =>
+      (inventoryQuery.data ?? []).map((i) => ({
+        id: i.id,
+        gymId: i.gym_id,
+        area: i.area,
+        name: i.name,
+        brand: i.brand ?? undefined,
+        model: i.model ?? undefined,
+        serialNumber: i.serial_number ?? undefined,
+        sku: i.sku ?? undefined,
+        quantity: i.quantity,
+        minStock: i.min_stock ?? undefined,
+        unitMeasure: i.unit_measure ?? undefined,
+        location: i.location ?? undefined,
+        status: i.status,
+        purchaseDate: i.purchase_date ?? undefined,
+        purchasePrice: i.purchase_price ?? undefined,
+        repairPrice: i.repair_price ?? undefined,
+        salePrice: i.sale_price ?? undefined,
+        supplier: i.supplier ?? undefined,
+        lastMaintenance: i.last_maintenance ?? undefined,
+        nextMaintenance: i.next_maintenance ?? undefined,
+        notes: i.notes ?? undefined,
+      })),
+    [inventoryQuery.data]
   );
 
   const STAFF_ROLES = ['admin', 'receptionist', 'platform_admin'];
@@ -639,19 +704,81 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     await invalidate('staff-profiles');
   };
 
-  const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
+  const addInventoryItem: AppStore['addInventoryItem'] = (item) => {
+    if (!gymId) return;
+    supabase
+      .from('inventory_items')
+      .insert({
+        gym_id: gymId,
+        area: item.area,
+        name: item.name,
+        brand: item.brand || null,
+        model: item.model || null,
+        serial_number: item.serialNumber || null,
+        sku: item.sku || null,
+        quantity: item.quantity,
+        min_stock: item.minStock ?? null,
+        unit_measure: item.unitMeasure || null,
+        location: item.location || null,
+        status: item.status,
+        purchase_date: item.purchaseDate || null,
+        purchase_price: item.purchasePrice ?? null,
+        repair_price: item.repairPrice ?? null,
+        sale_price: item.salePrice ?? null,
+        supplier: item.supplier || null,
+        last_maintenance: item.lastMaintenance || null,
+        next_maintenance: item.nextMaintenance || null,
+        notes: item.notes || null,
+        created_by: user?.id ?? null,
+      })
+      .then(({ error }) => {
+        if (error) throw error;
+        invalidate('inventory-items');
+      });
+  };
 
-  const addInventoryItem = useCallback((item: InventoryItem) => {
-    setInventory((prev) => [item, ...prev]);
-  }, []);
+  const updateInventoryItem: AppStore['updateInventoryItem'] = (id, updates) => {
+    const payload: Record<string, unknown> = {};
+    if ('area' in updates) payload.area = updates.area;
+    if ('name' in updates) payload.name = updates.name;
+    if ('brand' in updates) payload.brand = updates.brand || null;
+    if ('model' in updates) payload.model = updates.model || null;
+    if ('serialNumber' in updates) payload.serial_number = updates.serialNumber || null;
+    if ('sku' in updates) payload.sku = updates.sku || null;
+    if ('quantity' in updates) payload.quantity = updates.quantity;
+    if ('minStock' in updates) payload.min_stock = updates.minStock ?? null;
+    if ('unitMeasure' in updates) payload.unit_measure = updates.unitMeasure || null;
+    if ('location' in updates) payload.location = updates.location || null;
+    if ('status' in updates) payload.status = updates.status;
+    if ('purchaseDate' in updates) payload.purchase_date = updates.purchaseDate || null;
+    if ('purchasePrice' in updates) payload.purchase_price = updates.purchasePrice ?? null;
+    if ('repairPrice' in updates) payload.repair_price = updates.repairPrice ?? null;
+    if ('salePrice' in updates) payload.sale_price = updates.salePrice ?? null;
+    if ('supplier' in updates) payload.supplier = updates.supplier || null;
+    if ('lastMaintenance' in updates) payload.last_maintenance = updates.lastMaintenance || null;
+    if ('nextMaintenance' in updates) payload.next_maintenance = updates.nextMaintenance || null;
+    if ('notes' in updates) payload.notes = updates.notes || null;
 
-  const updateInventoryItem = useCallback((id: string, updates: Partial<InventoryItem>) => {
-    setInventory((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
-  }, []);
+    supabase
+      .from('inventory_items')
+      .update(payload)
+      .eq('id', id)
+      .then(({ error }) => {
+        if (error) throw error;
+        invalidate('inventory-items');
+      });
+  };
 
-  const deleteInventoryItem = useCallback((id: string) => {
-    setInventory((prev) => prev.filter((i) => i.id !== id));
-  }, []);
+  const deleteInventoryItem: AppStore['deleteInventoryItem'] = (id) => {
+    supabase
+      .from('inventory_items')
+      .delete()
+      .eq('id', id)
+      .then(({ error }) => {
+        if (error) throw error;
+        invalidate('inventory-items');
+      });
+  };
 
   const isLoading =
     profilesQuery.isLoading || membersQuery.isLoading || plansQuery.isLoading || paymentsQuery.isLoading;
