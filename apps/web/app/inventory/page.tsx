@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { Boxes, Plus, Package, Wrench, AlertTriangle, DollarSign, Pencil, Trash2, HeartPulse, Dumbbell, ShoppingCart } from 'lucide-react';
+import { Boxes, Plus, Package, Wrench, AlertTriangle, DollarSign, Pencil, Trash2, HeartPulse, Dumbbell, ShoppingCart, ScanBarcode } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
 import { FilterBar } from '@/components/shared/FilterBar';
@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MetricCard } from '@/components/shared/MetricCard';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
+import { BarcodeScannerModal } from '@/components/inventory/BarcodeScannerModal';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -79,9 +80,10 @@ export default function InventoryPage() {
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm('cardio'));
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const areaItems = useMemo(
-    () => inventory.filter(i => i.gymId === 'gym_001' && i.area === area),
+    () => inventory.filter(i => i.area === area),
     [inventory, area],
   );
 
@@ -109,6 +111,18 @@ export default function InventoryPage() {
   const openAdd = () => { setEditing(null); setForm(emptyForm(area)); setModalOpen(true); };
   const openEdit = (item: InventoryItem) => { setEditing(item); setForm(fromItem(item)); setModalOpen(true); };
   const closeModal = () => { setModalOpen(false); setEditing(null); };
+
+  const handleBarcodeDetected = (code: string) => {
+    setScannerOpen(false);
+    const existing = inventory.find(i => i.area === 'tienda' && i.sku === code);
+    if (existing) {
+      openEdit(existing);
+    } else {
+      setEditing(null);
+      setForm({ ...emptyForm('tienda'), sku: code });
+      setModalOpen(true);
+    }
+  };
 
   const set = (k: keyof FormState, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -152,9 +166,16 @@ export default function InventoryPage() {
         title="Inventario"
         subtitle="Control de activos, equipo y stock"
         actions={
-          <button onClick={openAdd} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            <Plus className="w-4 h-4" /> Agregar
-          </button>
+          <div className="flex gap-2">
+            {area === 'tienda' && (
+              <button onClick={() => setScannerOpen(true)} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50">
+                <ScanBarcode className="w-4 h-4" /> Escanear
+              </button>
+            )}
+            <button onClick={openAdd} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <Plus className="w-4 h-4" /> Agregar
+            </button>
+          </div>
         }
       />
       <div className="p-6 space-y-5">
@@ -376,6 +397,10 @@ export default function InventoryPage() {
         onConfirm={() => { if (deleteTarget) deleteInventoryItem(deleteTarget.id); setDeleteTarget(null); }}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {scannerOpen && (
+        <BarcodeScannerModal onDetected={handleBarcodeDetected} onClose={() => setScannerOpen(false)} />
+      )}
     </AppShell>
   );
 }
