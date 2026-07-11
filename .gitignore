@@ -47,3 +47,12 @@ apps/web/node_modules/
 apps/web/.next/
 apps/web/app/globals-temporal.css
 apps/web/app/globals-compilado-backup.css
+
+# Dependencias y compilaciones
+**/node_modules/
+**/.next/
+*.tsbuildinfo
+
+# Archivos locales de rescate
+handoff verdefosfo/
+recovered-web/
