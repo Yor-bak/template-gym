@@ -19,5 +19,8 @@ export function downloadCsv(filename: string, headers: string[], rows: CsvCell[]
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Revocar el object URL en el mismo tick puede ganarle la carrera al navegador
+  // iniciando la descarga (falla intermitente, sobre todo en Chromium
+  // automatizado/headless). Se difiere para dejar que la descarga arranque.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
