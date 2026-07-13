@@ -8,13 +8,6 @@
       "cwd": "apps/web",
       "port": 3000,
       "autoPort": true
-    },
-    {
-      "name": "template-gym",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000,
-      "autoPort": true
     }
   ]
 }
