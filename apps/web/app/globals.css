@@ -2571,6 +2571,15 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
+/* Fix de contraste para los desplegables nativos <select>: en tema oscuro las
+   opciones heredaban texto oscuro sobre popup oscuro y quedaban casi ilegibles.
+   Forzamos fondo elevado + texto claro en todas las opciones de forma global. */
+select { color-scheme: dark; }
+option {
+  background-color: var(--surface-elevated);
+  color: var(--foreground);
+}
+
 @property --tw-translate-x {
   syntax: "*";
   inherits: false;

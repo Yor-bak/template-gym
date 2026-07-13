@@ -5,6 +5,8 @@ import type { Member, Membership } from '@/types';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDate, addDays, addMonths } from '@/lib/utils';
+import { usePaymentConfig } from '@/lib/paymentConfig';
+import type { PaymentMethod } from '@/types';
 
 interface PaymentModalProps {
   member: Member | null;
@@ -26,7 +28,8 @@ export function PaymentModal({ member, memberships, onClose, onSuccess }: Paymen
   const { user } = useAuth();
   const [membershipId, setMembershipId] = useState(member?.membershipId ?? memberships[0]?.id ?? '');
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'cash' | 'card' | 'transfer' | 'other'>('cash');
+  const { options: methodOptions } = usePaymentConfig();
+  const [method, setMethod] = useState<PaymentMethod>('cash');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [startFromToday, setStartFromToday] = useState(member?.status === 'expired');
@@ -37,6 +40,13 @@ export function PaymentModal({ member, memberships, onClose, onSuccess }: Paymen
   useEffect(() => {
     if (selectedMembership) setAmount(String(selectedMembership.price));
   }, [membershipId, selectedMembership]);
+
+  // Si el método actual quedó deshabilitado en Configuración, cae al primero disponible.
+  useEffect(() => {
+    if (methodOptions.length > 0 && !methodOptions.some(o => o.value === method)) {
+      setMethod(methodOptions[0].value);
+    }
+  }, [methodOptions, method]);
 
   if (!member) return null;
 
@@ -111,11 +121,8 @@ export function PaymentModal({ member, memberships, onClose, onSuccess }: Paymen
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
-              <select value={method} onChange={e => setMethod(e.target.value as 'cash' | 'card' | 'transfer' | 'other')} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
-                <option value="cash">Efectivo</option>
-                <option value="card">Tarjeta</option>
-                <option value="transfer">Transferencia</option>
-                <option value="other">Otro</option>
+              <select value={method} onChange={e => setMethod(e.target.value as PaymentMethod)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
+                {methodOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
           </div>

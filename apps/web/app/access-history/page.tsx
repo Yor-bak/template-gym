@@ -8,7 +8,8 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MemberAvatar } from '@/components/members/MemberAvatar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useStore } from '@/lib/store';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, getAccessResultLabel } from '@/lib/utils';
+import { downloadCsv } from '@/lib/csv';
 
 export default function AccessHistoryPage() {
   const { accessLogs } = useStore();
@@ -25,13 +26,26 @@ export default function AccessHistoryPage() {
     return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [accessLogs, search, resultFilter]);
 
+  const handleExportCsv = () => {
+    const rows = filtered.map(a => [
+      formatDateTime(a.timestamp), a.memberName ?? '', a.memberNumber ?? '',
+      getAccessResultLabel(a.result), a.membershipName ?? '', a.reader ?? '',
+      a.blockReason ?? a.manualReason ?? '',
+    ]);
+    downloadCsv(
+      `historial_accesos_${new Date().toISOString().split('T')[0]}.csv`,
+      ['Fecha y hora', 'Miembro', 'No. miembro', 'Resultado', 'Membresía', 'Lector', 'Motivo'],
+      rows,
+    );
+  };
+
   return (
     <AppShell>
       <Header
         title="Historial de accesos"
         subtitle={`${filtered.length} registro${filtered.length !== 1 ? 's' : ''}`}
         actions={
-          <button className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+          <button onClick={handleExportCsv} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
             <Download className="w-4 h-4" /> Exportar CSV
           </button>
         }

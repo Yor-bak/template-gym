@@ -226,6 +226,42 @@ export default function InventoryPage() {
                     onClose={scanner.clearResult}
                   />
                 )}
+
+                {scanner.lastDetected && (
+                  <p className="text-xs text-gray-500">
+                    Última lectura:{' '}
+                    <span className="font-mono text-gray-700">{scanner.lastDetected.text}</span>
+                    <span className="text-gray-400">
+                      {' · '}
+                      {scanner.lastDetected.source === 'camera' ? 'cámara' : scanner.lastDetected.source === 'usb_scanner' ? 'lector USB' : 'manual'}
+                    </span>
+                  </p>
+                )}
+
+                {scanner.unregisteredScans.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-700">Productos no registrados ({scanner.unregisteredScans.length})</p>
+                      <button onClick={scanner.clearUnregistered} className="text-xs text-gray-400 hover:text-gray-600">Limpiar</button>
+                    </div>
+                    {scanner.unregisteredScans.map(u => (
+                      <div key={u.code} className="flex items-center justify-between gap-2 border-b border-gray-100 pb-2">
+                        <div className="min-w-0">
+                          <p className="font-mono text-sm text-gray-800 truncate">{u.code}</p>
+                          <p className="text-xs text-gray-400">Escaneado {u.count} {u.count === 1 ? 'vez' : 'veces'}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => { registerFromCode(u.code); scanner.dismissUnregistered(u.code); }} className="flex items-center gap-1 px-2.5 py-1.5 text-xs btn-primary rounded-lg">
+                            <Plus className="w-3.5 h-3.5" /> Agregar
+                          </button>
+                          <button onClick={() => scanner.dismissUnregistered(u.code)} title="Descartar" className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
