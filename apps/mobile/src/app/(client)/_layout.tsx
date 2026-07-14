@@ -1,19 +1,19 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 
-export default function ClientLayout() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+// La vista de cliente siempre usa el tema oscuro premium (independiente del
+// modo del sistema) — es la identidad visual de la tarjeta de acceso.
+const colors = Colors.dark;
 
+export default function ClientLayout() {
   return (
     <NativeTabs
       backgroundColor={colors.background}
       indicatorColor={colors.accentSoft}
-      labelStyle={{ selected: { color: colors.accent } }}>
+      labelStyle={{ selected: { color: colors.danger } }}>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Inicio</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Acceso</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'qrcode', selected: 'qrcode.viewfinder' }} md="qr_code" />
       </NativeTabs.Trigger>
 
@@ -25,14 +25,9 @@ export default function ClientLayout() {
         />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="trainer">
-        <NativeTabs.Trigger.Label>Entrenador</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="person.badge.shield.checkmark" md="verified_user" />
-      </NativeTabs.Trigger>
-
       <NativeTabs.Trigger name="profile">
-        <NativeTabs.Trigger.Label>Perfil</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="person.crop.circle" md="account_circle" />
+        <NativeTabs.Trigger.Label>Ajustes</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="gearshape.fill" md="settings" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

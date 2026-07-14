@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev", "--workspace", "apps/web"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "template-gym-mobile-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "--workspace", "apps/mobile"],
+      "port": 8081,
+      "autoPort": true
     }
   ]
 }
