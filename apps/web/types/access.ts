@@ -1,3 +1,5 @@
+import type { ScanSource } from './scan';
+
 export type AccessResult =
   | 'authorized'
   | 'expiring_soon'
@@ -25,4 +27,5 @@ export interface AccessLog {
   manualBy?: string;
   manualReason?: string;
   rawQrCode?: string;
+  source?: ScanSource;
 }

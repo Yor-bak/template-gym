@@ -1,4 +1,4 @@
-export type StaffRole = 'admin' | 'receptionist' | 'platform_admin';
+export type StaffRole = 'super_admin' | 'admin' | 'receptionist' | 'platform_admin';
 
 export interface Staff {
   id: string;
@@ -6,11 +6,15 @@ export interface Staff {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   role: StaffRole;
   active: boolean;
+  /** Titular del contrato del gimnasio (super_admin). */
+  isContractHolder?: boolean;
   lastLogin?: string;
   paymentsRegistered: number;
   actionsCount: number;
   createdAt: string;
-  password?: string; // only for simulation
+  /** Solo para el login simulado en modo demo. */
+  password?: string;
 }

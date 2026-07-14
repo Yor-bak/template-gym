@@ -1,6 +1,11 @@
 import { cn, getInitials } from '@/lib/utils';
 
-const colors = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500', 'bg-indigo-500'];
+// Paleta fija por hash de nombre, hex literal en vez de utilidades bg-*-500:
+// esas ya son parte de la escala semántica del sistema oscuro (verde-500 es
+// el lima de "autorizado", por ejemplo) y no deben reutilizarse aquí. Son 7
+// tonos desaturados pensados para leerse bien sobre #171512 (avatar) con
+// iniciales claras encima — ver handoff verdefosfo/README.md §MemberAvatar.
+const colors = ['#5b6b7a', '#8a7a4a', '#4a7a72', '#8a5a48', '#6b7a94', '#7a628a', '#6a7a4a'];
 
 function getColor(name: string): string {
   let hash = 0;
@@ -21,7 +26,10 @@ export function MemberAvatar({ firstName, lastName, size = 'md', className }: Me
   const initials = getInitials(firstName, lastName);
   const color = getColor(firstName + lastName);
   return (
-    <div className={cn('rounded-full flex items-center justify-center text-white font-semibold shrink-0', sizes[size], color, className)}>
+    <div
+      className={cn('rounded-full flex items-center justify-center text-[#f3f1ea] font-semibold shrink-0', sizes[size], className)}
+      style={{ backgroundColor: color }}
+    >
       {initials}
     </div>
   );

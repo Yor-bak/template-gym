@@ -3,8 +3,7 @@ export interface Trainer {
   gymId: string | null;
   firstName: string;
   lastName: string;
-  email: string;
-  phone?: string;
+  phone: string;
 }
 
 export interface TrainerAssignment {

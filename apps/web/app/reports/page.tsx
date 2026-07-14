@@ -6,6 +6,7 @@ import { Header } from '@/components/layout/Header';
 import { MetricCard } from '@/components/shared/MetricCard';
 import { MemberAvatar } from '@/components/members/MemberAvatar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { PeakHoursReport } from '@/components/reports/PeakHoursReport';
 import { useStore } from '@/lib/store';
 import { formatCurrency, formatDate, daysUntil, downloadCsv } from '@/lib/utils';
 
@@ -78,20 +79,6 @@ export default function ReportsPage() {
     [members, accessLogs]
   );
 
-  const dailyAccesses = useMemo(() => {
-    const days: { date: string; count: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const count = accessLogs.filter(a => a.timestamp.startsWith(dateStr) && ['authorized', 'expiring_soon', 'temporary_access'].includes(a.result)).length;
-      days.push({ date: dateStr.slice(5), count });
-    }
-    return days;
-  }, [accessLogs]);
-
-  const maxCount = Math.max(...dailyAccesses.map(d => d.count), 1);
-
   const exportUpcomingExpirations = () => {
     const rows = members.filter(m => m.status === 'expiring_soon').map(m => ({
       Miembro: `${m.firstName} ${m.lastName}`, Número: m.memberNumber, Vencimiento: m.expirationDate, 'Días restantes': daysUntil(m.expirationDate),
@@ -114,10 +101,6 @@ export default function ReportsPage() {
     downloadCsv(`sin-actividad-${today}.csv`, rows);
   };
 
-  const exportDailyAccesses = () => {
-    downloadCsv(`accesos-diarios-${today}.csv`, dailyAccesses.map(d => ({ Fecha: d.date, Accesos: d.count })));
-  };
-
   const exportPaymentsSummary = () => {
     downloadCsv(`pagos-${thisMonth}.csv`, [
       { Concepto: 'Total confirmado', Valor: metrics.monthRevenue },
@@ -138,22 +121,9 @@ export default function ReportsPage() {
           <MetricCard title="Nuevos este mes" value={metrics.newThisMonth} icon={UserPlus} iconColor="text-purple-600" />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Section title="Entradas por día (últimos 7 días)" onExport={exportDailyAccesses}>
-            <div className="flex items-end gap-2 h-32">
-              {dailyAccesses.map(d => (
-                <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs text-gray-500">{d.count}</span>
-                  <div
-                    className="w-full bg-blue-500 rounded-t-sm transition-all"
-                    style={{ height: `${(d.count / maxCount) * 100}%`, minHeight: d.count > 0 ? '4px' : '0' }}
-                  />
-                  <span className="text-xs text-gray-400">{d.date}</span>
-                </div>
-              ))}
-            </div>
-          </Section>
+        <PeakHoursReport accessLogs={accessLogs} />
 
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Section title="Próximos vencimientos" onExport={exportUpcomingExpirations}>
             <div className="space-y-2">
               {members.filter(m => m.status === 'expiring_soon').slice(0, 5).map(m => (

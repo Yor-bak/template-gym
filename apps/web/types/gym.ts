@@ -10,6 +10,7 @@ export interface Gym {
   timezone: string;
   currency: Currency;
   memberPrefix: string;
+  customerNumber?: string;
   logoUrl?: string;
   primaryColor: string;
   active: boolean;

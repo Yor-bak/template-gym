@@ -21,11 +21,11 @@ export function FilterBar({ search, onSearchChange, searchPlaceholder = 'Buscar.
           value={search}
           onChange={e => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
-          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-2 focus:border-[var(--primary)]"
         />
       </div>
       {filters.map(f => (
-        <select key={f.key} value={f.value} onChange={e => f.onChange(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <select key={f.key} value={f.value} onChange={e => f.onChange(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-2 focus:border-[var(--primary)]">
           <option value="">{f.label}</option>
           {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>

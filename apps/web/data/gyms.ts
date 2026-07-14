@@ -11,6 +11,7 @@ export const gyms: Gym[] = [
     timezone: 'America/Mexico_City',
     currency: 'MXN',
     memberPrefix: 'AF',
+    customerNumber: 'TG-AF-0001',
     primaryColor: '#2563eb',
     active: true,
     subscriptionStatus: 'active',

@@ -1,43 +1,29 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import { Monitor } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
-import { AccessPopup } from '@/components/access/AccessPopup';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MemberAvatar } from '@/components/members/MemberAvatar';
 import { ConnectionIndicator } from '@/components/shared/ConnectionIndicator';
+import { ScannerViewport } from '@/components/camera/ScannerViewport';
+import { ScannerMiniPanel } from '@/components/camera/ScannerMiniPanel';
+import { useCamera } from '@/lib/camera/CameraContext';
+import { useScanner } from '@/lib/camera/ScannerContext';
 import { useStore } from '@/lib/store';
-import { daysUntil } from '@/lib/utils';
-import type { AccessLog } from '@/types';
-
-// Mapea el status de negocio del miembro (members.status) al resultado que
-// vería un lector de acceso real. Mientras no exista el backend en FastAPI,
-// esta es la "validate_access" local: sin RPC, sin red.
-function resultFromMemberStatus(status: string): AccessLog['result'] {
-  switch (status) {
-    case 'active':
-      return 'authorized';
-    case 'expiring_soon':
-      return 'expiring_soon';
-    case 'expired':
-      return 'expired';
-    case 'blocked':
-      return 'blocked';
-    case 'temporary_access':
-      return 'temporary_access';
-    default:
-      return 'invalid_qr';
-  }
-}
 
 export default function AccessMonitorPage() {
-  const { members, memberships, accessLogs, addAccessLog } = useStore();
+  const { accessLogs } = useStore();
+  const camera = useCamera();
+  const scanner = useScanner();
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-  const [activePopup, setActivePopup] = useState<AccessLog | null>(null);
-  const [selectedMemberId, setSelectedMemberId] = useState('');
   const [connected, setConnected] = useState(true);
-  const [scanning, setScanning] = useState(false);
+
+  // Este es el monitor "completo" de recepción: siempre trabaja en modo accesos
+  // — no ofrece cambiar a Inventario (ScannerMiniPanel no incluye ese control aquí).
+  useEffect(() => {
+    scanner.setMode('access');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })), 1000);
@@ -48,44 +34,6 @@ export default function AccessMonitorPage() {
   const localLogs = accessLogs.slice(0, 20);
   const todayAuthorized = localLogs.filter(a => a.timestamp.startsWith(today) && ['authorized', 'expiring_soon', 'temporary_access'].includes(a.result)).length;
   const todayRejected = localLogs.filter(a => a.timestamp.startsWith(today) && ['expired', 'blocked', 'invalid_qr'].includes(a.result)).length;
-
-  const handleSimulateScan = useCallback(async () => {
-    if (!connected || scanning) return;
-    setScanning(true);
-    try {
-      const member = selectedMemberId ? members.find(m => m.id === selectedMemberId) : undefined;
-      const rawQrCode = member ? undefined : `QR-SIM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      const result = member ? resultFromMemberStatus(member.status) : 'invalid_qr';
-      const timestamp = new Date().toISOString();
-      const days = member?.expirationDate ? daysUntil(member.expirationDate) : undefined;
-      const membership = member ? memberships.find(ms => ms.id === member.membershipId) : undefined;
-
-      const entry: AccessLog = {
-        id: `sim-${Date.now()}`,
-        gymId: member?.gymId ?? '',
-        memberId: member?.id,
-        memberNumber: member?.memberNumber,
-        memberName: member ? `${member.firstName} ${member.lastName}` : undefined,
-        membershipName: membership?.name,
-        result,
-        timestamp,
-        reader: 'Entrada principal',
-        membershipExpirationDate: member?.expirationDate,
-        daysUntilExpiration: days != null && days >= 0 ? days : undefined,
-        daysSinceExpiration: days != null && days < 0 ? Math.abs(days) : undefined,
-        lastPaymentDate: member?.lastPaymentDate,
-        blockReason: member?.blockReason,
-        rawQrCode,
-      };
-
-      await addAccessLog(entry);
-      setActivePopup(entry);
-    } finally {
-      setScanning(false);
-    }
-  }, [connected, scanning, selectedMemberId, members, memberships, addAccessLog]);
-
-  const activeMembers = members.filter(m => m.status !== 'archived');
 
   return (
     <AppShell>
@@ -119,36 +67,19 @@ export default function AccessMonitorPage() {
           </div>
         </div>
 
-        {/* Simulate scan panel */}
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">Simular escaneo QR</h2>
-          <div className="flex gap-3 flex-wrap">
-            <select
-              value={selectedMemberId}
-              onChange={e => setSelectedMemberId(e.target.value)}
-              className="flex-1 min-w-48 text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">— QR inválido / desconocido —</option>
-              {activeMembers.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.memberNumber} — {m.firstName} {m.lastName} ({m.status === 'active' ? 'activo' : m.status === 'expired' ? 'vencido' : m.status === 'blocked' ? 'bloqueado' : m.status})
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleSimulateScan}
-              disabled={!connected || scanning}
-              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              <Monitor className="w-4 h-4" />
-              {scanning ? 'Escaneando...' : 'Simular escaneo'}
-            </button>
+        {!connected && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+            Sistema sin conexión. Los escaneos no están disponibles en este momento.
           </div>
-          {!connected && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-              Sistema sin conexión. Los escaneos no están disponibles. Puedes registrar acceso manual.
-            </div>
-          )}
+        )}
+
+        {/* Escáner de cámara real — misma mini sección de control que en Inicio */}
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4">Escáner de acceso</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <ScannerViewport size="lg" onActivate={camera.requestAccess} />
+            <ScannerMiniPanel />
+          </div>
         </div>
 
         {/* Live Access List */}
@@ -174,7 +105,7 @@ export default function AccessMonitorPage() {
                     <p className="text-sm font-medium text-gray-900">{log.memberName ?? 'Desconocido'}</p>
                     <p className="text-xs text-gray-400">{log.memberNumber ?? log.rawQrCode ?? '—'}</p>
                   </div>
-                  <StatusBadge status={log.result as any} />
+                  <StatusBadge status={log.result} />
                   <span className="text-xs text-gray-400 shrink-0">{log.timestamp.split('T')[1]?.slice(0, 5)}</span>
                 </div>
               );
@@ -182,19 +113,6 @@ export default function AccessMonitorPage() {
           </div>
         </div>
       </div>
-
-      {/* Access Popup */}
-      <AccessPopup
-        log={activePopup}
-        onClose={() => setActivePopup(null)}
-        autoCloseSecs={6}
-        onRegisterPayment={(memberId) => {
-          window.location.href = `/members/${memberId}`;
-        }}
-        onTemporaryAccess={(memberId) => {
-          window.location.href = `/members/${memberId}`;
-        }}
-      />
     </AppShell>
   );
 }

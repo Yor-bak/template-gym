@@ -20,7 +20,7 @@ const styles: Record<BadgeVariant, string> = {
   operating: 'bg-green-100 text-green-800',
   maintenance: 'bg-yellow-100 text-yellow-800',
   out_of_service: 'bg-red-100 text-red-800',
-  low_stock: 'bg-orange-100 text-orange-800',
+  low_stock: 'bg-orange-100 text-orange-600',
 };
 
 const labels: Record<BadgeVariant, string> = {

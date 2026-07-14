@@ -118,26 +118,26 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
-                <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.firstName ? 'border-red-400' : 'border-gray-200'}`} />
+                <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] ${errors.firstName ? 'border-red-400' : 'border-gray-200'}`} />
                 {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Apellidos *</label>
-                <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.lastName ? 'border-red-400' : 'border-gray-200'}`} />
+                <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] ${errors.lastName ? 'border-red-400' : 'border-gray-200'}`} />
                 {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono *</label>
-                <input value={form.phone} onChange={e => set('phone', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.phone ? 'border-red-400' : 'border-gray-200'}`} />
+                <input value={form.phone} onChange={e => set('phone', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] ${errors.phone ? 'border-red-400' : 'border-gray-200'}`} />
                 {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Correo</label>
-                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Fecha de nacimiento</label>
-                <input type="date" value={form.birthDate} onChange={e => set('birthDate', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="date" value={form.birthDate} onChange={e => set('birthDate', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" />
               </div>
             </div>
           </div>
@@ -147,7 +147,7 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de membresía *</label>
-                <select value={form.membershipId} onChange={e => set('membershipId', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={form.membershipId} onChange={e => set('membershipId', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
                   {memberships.filter(m => m.active).map(m => (
                     <option key={m.id} value={m.id}>{m.name} — {formatCurrency(m.price)}</option>
                   ))}
@@ -155,7 +155,7 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Fecha de inicio</label>
-                <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Fecha de vencimiento</label>
@@ -174,11 +174,11 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
               <div className="grid grid-cols-2 gap-4 pl-6 border-l-2 border-blue-200">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Cantidad</label>
-                  <input type="number" value={form.paymentAmount} onChange={e => set('paymentAmount', Number(e.target.value))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" min="1" />
+                  <input type="number" value={form.paymentAmount} onChange={e => set('paymentAmount', Number(e.target.value))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" min="1" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Método</label>
-                  <select value={form.paymentMethod} onChange={e => set('paymentMethod', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select value={form.paymentMethod} onChange={e => set('paymentMethod', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
                     <option value="cash">Efectivo</option>
                     <option value="card">Tarjeta</option>
                     <option value="transfer">Transferencia</option>
@@ -191,12 +191,12 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Notas</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none" />
           </div>
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-5 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 btn-primary text-sm rounded-lg disabled:opacity-60">
               {loading ? 'Guardando...' : registerPayment ? 'Guardar y registrar pago' : 'Guardar miembro'}
             </button>
           </div>

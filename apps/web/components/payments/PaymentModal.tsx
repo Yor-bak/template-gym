@@ -5,6 +5,8 @@ import type { Member, Membership } from '@/types';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDate, addDays, addMonths } from '@/lib/utils';
+import { usePaymentConfig } from '@/lib/paymentConfig';
+import type { PaymentMethod } from '@/types';
 
 interface PaymentModalProps {
   member: Member | null;
@@ -26,7 +28,8 @@ export function PaymentModal({ member, memberships, onClose, onSuccess }: Paymen
   const { user } = useAuth();
   const [membershipId, setMembershipId] = useState(member?.membershipId ?? memberships[0]?.id ?? '');
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'cash' | 'card' | 'transfer' | 'other'>('cash');
+  const { options: methodOptions } = usePaymentConfig();
+  const [method, setMethod] = useState<PaymentMethod>('cash');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [startFromToday, setStartFromToday] = useState(member?.status === 'expired');
@@ -37,6 +40,13 @@ export function PaymentModal({ member, memberships, onClose, onSuccess }: Paymen
   useEffect(() => {
     if (selectedMembership) setAmount(String(selectedMembership.price));
   }, [membershipId, selectedMembership]);
+
+  // Si el método actual quedó deshabilitado en Configuración, cae al primero disponible.
+  useEffect(() => {
+    if (methodOptions.length > 0 && !methodOptions.some(o => o.value === method)) {
+      setMethod(methodOptions[0].value);
+    }
+  }, [methodOptions, method]);
 
   if (!member) return null;
 
@@ -99,7 +109,7 @@ export function PaymentModal({ member, memberships, onClose, onSuccess }: Paymen
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Membresía</label>
-              <select value={membershipId} onChange={e => setMembershipId(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={membershipId} onChange={e => setMembershipId(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
                 {memberships.filter(m => m.active).map(m => (
                   <option key={m.id} value={m.id}>{m.name} — {formatCurrency(m.price)}</option>
                 ))}
@@ -107,15 +117,12 @@ export function PaymentModal({ member, memberships, onClose, onSuccess }: Paymen
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad recibida</label>
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required min="1" />
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" required min="1" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
-              <select value={method} onChange={e => setMethod(e.target.value as 'cash' | 'card' | 'transfer' | 'other')} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="cash">Efectivo</option>
-                <option value="card">Tarjeta</option>
-                <option value="transfer">Transferencia</option>
-                <option value="other">Otro</option>
+              <select value={method} onChange={e => setMethod(e.target.value as PaymentMethod)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
+                {methodOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
           </div>
@@ -136,16 +143,16 @@ export function PaymentModal({ member, memberships, onClose, onSuccess }: Paymen
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Referencia (opcional)</label>
-            <input value={reference} onChange={e => setReference(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Núm. de transferencia, folio, etc." />
+            <input value={reference} onChange={e => setReference(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" placeholder="Núm. de transferencia, folio, etc." />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none" />
           </div>
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 btn-primary text-sm rounded-lg disabled:opacity-60">
               {loading ? 'Registrando...' : 'Registrar pago'}
             </button>
           </div>

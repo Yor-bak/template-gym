@@ -66,7 +66,7 @@ export default function MembershipsPage() {
         title="Membresías"
         subtitle="Tipos de membresía disponibles"
         actions={canEdit && (
-          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 text-sm btn-primary rounded-lg">
             <Plus className="w-4 h-4" /> Nueva membresía
           </button>
         )}
@@ -120,24 +120,24 @@ export default function MembershipsPage() {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
-                <input value={form.name} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input value={form.name} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Precio (MXN)</label>
-                  <input type="number" value={form.price} onChange={e => setForm(prev => ({ ...prev, price: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" />
+                  <input type="number" value={form.price} onChange={e => setForm(prev => ({ ...prev, price: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" min="0" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Tolerancia (días)</label>
-                  <input type="number" value={form.toleranceDays} onChange={e => setForm(prev => ({ ...prev, toleranceDays: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" />
+                  <input type="number" value={form.toleranceDays} onChange={e => setForm(prev => ({ ...prev, toleranceDays: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" min="0" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Duración</label>
-                  <input type="number" value={form.duration} onChange={e => setForm(prev => ({ ...prev, duration: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" min="1" />
+                  <input type="number" value={form.duration} onChange={e => setForm(prev => ({ ...prev, duration: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" min="1" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
-                  <select value={form.durationUnit} onChange={e => setForm(prev => ({ ...prev, durationUnit: e.target.value as any }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select value={form.durationUnit} onChange={e => setForm(prev => ({ ...prev, durationUnit: e.target.value as any }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
                     <option value="days">Días</option>
                     <option value="weeks">Semanas</option>
                     <option value="months">Meses</option>
@@ -147,12 +147,12 @@ export default function MembershipsPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
-                <textarea value={form.description} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <textarea value={form.description} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" />
               </div>
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-lg">Cancelar</button>
-              <button onClick={handleSave} className="flex-1 py-2.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Guardar</button>
+              <button onClick={handleSave} className="flex-1 py-2.5 btn-primary text-sm rounded-lg">Guardar</button>
             </div>
           </div>
         </div>

@@ -30,7 +30,7 @@ export function ConfirmationDialog({ open, title, description, confirmLabel = 'C
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">{cancelLabel}</button>
-          <button onClick={onConfirm} className={`px-4 py-2 text-sm text-white rounded-lg ${variant === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{confirmLabel}</button>
+          <button onClick={onConfirm} className={`px-4 py-2 text-sm rounded-lg ${variant === 'danger' ? 'bg-red-600 hover:bg-red-700 text-white' : 'btn-primary'}`}>{confirmLabel}</button>
         </div>
       </div>
     </div>

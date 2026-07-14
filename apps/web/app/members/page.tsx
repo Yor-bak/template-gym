@@ -13,7 +13,8 @@ import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
-import { formatDate, daysUntil } from '@/lib/utils';
+import { formatDate, daysUntil, normalizePhone, getMemberStatusLabel } from '@/lib/utils';
+import { downloadCsv } from '@/lib/csv';
 import type { Member, MemberStatus } from '@/types';
 
 const PAGE_SIZE = 15;
@@ -35,12 +36,16 @@ function MembersContent() {
 
   const filtered = useMemo(() => {
     let list = members;
-    if (search) {
-      const q = search.toLowerCase();
+    const term = search.trim();
+    if (term) {
+      const q = term.toLowerCase();
+      const qDigits = normalizePhone(term);
       list = list.filter(m =>
         `${m.firstName} ${m.lastName}`.toLowerCase().includes(q) ||
+        m.firstName.toLowerCase().includes(q) ||
+        m.lastName.toLowerCase().includes(q) ||
         m.memberNumber.toLowerCase().includes(q) ||
-        m.phone.includes(q)
+        (qDigits.length > 0 && normalizePhone(m.phone).includes(qDigits))
       );
     }
     if (statusFilter) list = list.filter(m => m.status === statusFilter);
@@ -50,9 +55,23 @@ function MembersContent() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const hasActiveFilters = !!search.trim() || !!statusFilter || !!membershipFilter;
+  const clearFilters = () => { setSearch(''); setStatusFilter(''); setMembershipFilter(''); setPage(1); };
 
   const confirm = (title: string, desc: string, action: () => void) => {
     setConfirmDialog({ open: true, title, desc, action });
+  };
+
+  const handleExportCsv = () => {
+    const rows = filtered.map(m => [
+      m.memberNumber, `${m.firstName} ${m.lastName}`, m.phone ?? '', m.email ?? '',
+      getMemberStatusLabel(m.status), formatDate(m.expirationDate),
+    ]);
+    downloadCsv(
+      `miembros_${new Date().toISOString().split('T')[0]}.csv`,
+      ['No. miembro', 'Nombre', 'Teléfono', 'Correo', 'Estado', 'Vence'],
+      rows,
+    );
   };
 
   const handleBlock = (m: Member) => confirm(
@@ -84,10 +103,10 @@ function MembersContent() {
         subtitle={`${filtered.length} miembro${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`}
         actions={
           <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+            <button onClick={handleExportCsv} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
               <Download className="w-4 h-4" /> Exportar
             </button>
-            <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 text-sm btn-primary rounded-lg">
               <UserPlus className="w-4 h-4" /> Nuevo miembro
             </button>
           </div>
@@ -118,12 +137,16 @@ function MembersContent() {
               onChange: v => { setMembershipFilter(v); setPage(1); }
             },
           ]}
-          onClear={() => { setSearch(''); setStatusFilter(''); setMembershipFilter(''); setPage(1); }}
+          onClear={clearFilters}
         />
 
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           {paginated.length === 0 ? (
-            <EmptyState icon={Users} title="Sin miembros" description="No se encontraron miembros con los filtros actuales." action={{ label: 'Agregar miembro', onClick: () => setShowForm(true) }} />
+            hasActiveFilters ? (
+              <EmptyState icon={Users} title="Sin resultados" description="No encontramos miembros que coincidan con la búsqueda." action={{ label: 'Limpiar búsqueda', onClick: clearFilters }} />
+            ) : (
+              <EmptyState icon={Users} title="Sin miembros" description="No se encontraron miembros con los filtros actuales." action={{ label: 'Agregar miembro', onClick: () => setShowForm(true) }} />
+            )
           ) : (
             <>
               <div className="overflow-x-auto">

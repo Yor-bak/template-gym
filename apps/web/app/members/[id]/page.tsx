@@ -121,7 +121,7 @@ export default function MemberProfilePage() {
             </div>
             {/* Actions */}
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-2 text-sm btn-primary rounded-lg">
                 <CreditCard className="w-4 h-4" /> Registrar pago
               </button>
               {member.status !== 'blocked' ? (
@@ -234,7 +234,7 @@ export default function MemberProfilePage() {
                   ...(member.temporaryAccessUntil ? [{ date: new Date().toISOString(), label: 'Acceso temporal otorgado', detail: `Por ${member.temporaryAccessBy}: ${member.temporaryAccessReason}` }] : []),
                 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((ev, i) => (
                   <div key={i} className="flex gap-3 relative">
-                    <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-white shadow shrink-0 mt-0.5 -ml-5" />
+                    <div className="w-3 h-3 rounded-full bg-[var(--primary)] border-2 border-white shadow shrink-0 mt-0.5 -ml-5" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">{ev.label}</p>
                       <p className="text-xs text-gray-400">{ev.detail}</p>
@@ -320,7 +320,7 @@ export default function MemberProfilePage() {
             </div>
             <div className="flex gap-3 mt-4">
               <button onClick={() => setShowTempAccess(false)} className="flex-1 py-2 text-sm border border-gray-200 rounded-lg">Cancelar</button>
-              <button onClick={handleTempAccess} className="flex-1 py-2 text-sm bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">Autorizar</button>
+              <button onClick={handleTempAccess} className="flex-1 py-2 text-sm bg-yellow-600 text-[#141311] font-semibold rounded-lg hover:brightness-95">Autorizar</button>
             </div>
           </div>
         </div>

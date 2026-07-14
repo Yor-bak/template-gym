@@ -8,7 +8,11 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MetricCard } from '@/components/shared/MetricCard';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
-import { BarcodeScannerModal } from '@/components/inventory/BarcodeScannerModal';
+import { ScannerViewport } from '@/components/camera/ScannerViewport';
+import { InventoryScanResult } from '@/components/camera/InventoryScanResult';
+import { ManualCodeEntry } from '@/components/camera/ManualCodeEntry';
+import { useCamera } from '@/lib/camera/CameraContext';
+import { useScanner } from '@/lib/camera/ScannerContext';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -72,6 +76,8 @@ export default function InventoryPage() {
   const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem } = useStore();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const camera = useCamera();
+  const scanner = useScanner();
 
   const [area, setArea] = useState<InventoryArea>('cardio');
   const [search, setSearch] = useState('');
@@ -80,7 +86,7 @@ export default function InventoryPage() {
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm('cardio'));
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [globalScannerOpen, setGlobalScannerOpen] = useState(false);
 
   const areaItems = useMemo(
     () => inventory.filter(i => i.area === area),
@@ -112,16 +118,17 @@ export default function InventoryPage() {
   const openEdit = (item: InventoryItem) => { setEditing(item); setForm(fromItem(item)); setModalOpen(true); };
   const closeModal = () => { setModalOpen(false); setEditing(null); };
 
-  const handleBarcodeDetected = (code: string) => {
-    setScannerOpen(false);
-    const existing = inventory.find(i => i.area === 'tienda' && i.sku === code);
-    if (existing) {
-      openEdit(existing);
-    } else {
-      setEditing(null);
-      setForm({ ...emptyForm('tienda'), sku: code });
-      setModalOpen(true);
-    }
+  const openGlobalScanner = () => {
+    scanner.setMode('inventory');
+    scanner.clearResult();
+    setGlobalScannerOpen(true);
+  };
+  const registerFromCode = (code: string) => {
+    setGlobalScannerOpen(false);
+    scanner.clearResult();
+    setEditing(null);
+    setForm({ ...emptyForm('tienda'), sku: code });
+    setModalOpen(true);
   };
 
   const set = (k: keyof FormState, v: string) => setForm(prev => ({ ...prev, [k]: v }));
@@ -168,11 +175,11 @@ export default function InventoryPage() {
         actions={
           <div className="flex gap-2">
             {area === 'tienda' && (
-              <button onClick={() => setScannerOpen(true)} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50">
-                <ScanBarcode className="w-4 h-4" /> Escanear
+              <button onClick={openGlobalScanner} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50">
+                <ScanBarcode className="w-4 h-4" /> Escanear producto
               </button>
             )}
-            <button onClick={openAdd} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button onClick={openAdd} className="flex items-center gap-2 px-3 py-2 text-sm btn-primary rounded-lg">
               <Plus className="w-4 h-4" /> Agregar
             </button>
           </div>
@@ -195,10 +202,75 @@ export default function InventoryPage() {
           )}
         </div>
 
+        {globalScannerOpen && (
+          <div className="bg-white rounded-lg border border-gray-200 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900">Escanear producto</h2>
+              <button onClick={() => setGlobalScannerOpen(false)} className="text-sm text-gray-400 hover:text-gray-600">Cerrar</button>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <ScannerViewport size="md" onActivate={camera.requestAccess} />
+              <div className="flex flex-col gap-3">
+                <ManualCodeEntry />
+                {scanner.lastResult?.kind === 'inventory' && (
+                  <InventoryScanResult
+                    result={scanner.lastResult.result}
+                    isAdmin={isAdmin}
+                    onEdit={(id) => {
+                      const item = inventory.find(i => i.id === id);
+                      if (item) openEdit(item);
+                      scanner.clearResult();
+                      setGlobalScannerOpen(false);
+                    }}
+                    onRegisterNew={registerFromCode}
+                    onClose={scanner.clearResult}
+                  />
+                )}
+
+                {scanner.lastDetected && (
+                  <p className="text-xs text-gray-500">
+                    Última lectura:{' '}
+                    <span className="font-mono text-gray-700">{scanner.lastDetected.text}</span>
+                    <span className="text-gray-400">
+                      {' · '}
+                      {scanner.lastDetected.source === 'camera' ? 'cámara' : scanner.lastDetected.source === 'usb_scanner' ? 'lector USB' : 'manual'}
+                    </span>
+                  </p>
+                )}
+
+                {scanner.unregisteredScans.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-700">Productos no registrados ({scanner.unregisteredScans.length})</p>
+                      <button onClick={scanner.clearUnregistered} className="text-xs text-gray-400 hover:text-gray-600">Limpiar</button>
+                    </div>
+                    {scanner.unregisteredScans.map(u => (
+                      <div key={u.code} className="flex items-center justify-between gap-2 border-b border-gray-100 pb-2">
+                        <div className="min-w-0">
+                          <p className="font-mono text-sm text-gray-800 truncate">{u.code}</p>
+                          <p className="text-xs text-gray-400">Escaneado {u.count} {u.count === 1 ? 'vez' : 'veces'}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => { registerFromCode(u.code); scanner.dismissUnregistered(u.code); }} className="flex items-center gap-1 px-2.5 py-1.5 text-xs btn-primary rounded-lg">
+                            <Plus className="w-3.5 h-3.5" /> Agregar
+                          </button>
+                          <button onClick={() => scanner.dismissUnregistered(u.code)} title="Descartar" className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Area tabs */}
         <div className="flex flex-wrap gap-1 bg-gray-100 rounded-lg p-1 w-fit">
           {AREA_TABS.map(t => (
-            <button key={t.key} onClick={() => setArea(t.key)} className={`flex items-center gap-2 px-4 py-1.5 text-sm rounded-md transition-colors ${area === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <button key={t.key} onClick={() => setArea(t.key)} className={`flex items-center gap-2 px-4 py-1.5 text-sm rounded-md transition-colors ${area === t.key ? 'bg-[#2a2822] text-[var(--primary)] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               <t.icon className="w-4 h-4" /> {t.label}
             </button>
           ))}
@@ -382,7 +454,7 @@ export default function InventoryPage() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 sticky bottom-0 bg-white">
               <button onClick={closeModal} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleSave} disabled={!form.name.trim()} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{editing ? 'Guardar cambios' : 'Agregar'}</button>
+              <button onClick={handleSave} disabled={!form.name.trim()} className="px-4 py-2 text-sm btn-primary rounded-lg disabled:opacity-50">{editing ? 'Guardar cambios' : 'Agregar'}</button>
             </div>
           </div>
         </div>
@@ -397,10 +469,6 @@ export default function InventoryPage() {
         onConfirm={() => { if (deleteTarget) deleteInventoryItem(deleteTarget.id); setDeleteTarget(null); }}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      {scannerOpen && (
-        <BarcodeScannerModal onDetected={handleBarcodeDetected} onClose={() => setScannerOpen(false)} />
-      )}
     </AppShell>
   );
 }

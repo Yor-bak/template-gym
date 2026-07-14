@@ -3,8 +3,24 @@ import { format, formatDistanceToNow, differenceInDays, parseISO } from 'date-fn
 import { es } from 'date-fns/locale';
 import type { MemberStatus, AccessResult, PaymentStatus, PaymentMethod, InventoryArea, InventoryStatus } from '@/types';
 
+export type ExpirationPriority = 'today' | 'tomorrow' | 'soon' | 'later';
+
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
+}
+
+/** Deja solo dígitos — permite comparar "55 1234 5678", "55-1234-5678" y "+52 55 1234 5678" entre sí. */
+export function normalizePhone(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
+/** Formatos comunes de México: 10 dígitos locales, u opcionalmente con lada 52/+52 (12-13 dígitos). */
+export function isValidMexicanPhone(value: string): boolean {
+  const digits = normalizePhone(value);
+  if (digits.length === 10) return true;
+  if (digits.length === 12 && digits.startsWith('52')) return true;
+  if (digits.length === 13 && digits.startsWith('521')) return true;
+  return false;
 }
 
 export function formatCurrency(amount: number): string {
@@ -63,6 +79,32 @@ export function getAccessResultLabel(result: AccessResult): string {
     manual: 'Manual',
   };
   return labels[result];
+}
+
+// Único punto de conversión entre el estado de un miembro (MemberStatus) y el
+// resultado de un intento de acceso (AccessResult) — son uniones distintas
+// (p. ej. "active" no es un AccessResult válido, el equivalente es
+// "authorized") y mezclarlas con un cast directo rompe cualquier código que
+// indexe por AccessResult (ver MembershipStatusBadge).
+export function getAccessResultFromMemberStatus(status: MemberStatus): AccessResult {
+  const map: Record<MemberStatus, AccessResult> = {
+    active: 'authorized',
+    expiring_soon: 'expiring_soon',
+    expired: 'expired',
+    blocked: 'blocked',
+    temporary_access: 'temporary_access',
+    pending_activation: 'invalid_qr',
+    archived: 'invalid_qr',
+  };
+  return map[status];
+}
+
+/** Prioridad visual para un vencimiento según los días restantes (>=0). */
+export function getExpirationPriority(daysRemaining: number): ExpirationPriority {
+  if (daysRemaining <= 0) return 'today';
+  if (daysRemaining === 1) return 'tomorrow';
+  if (daysRemaining <= 3) return 'soon';
+  return 'later';
 }
 
 export function getPaymentMethodLabel(method: PaymentMethod): string {
