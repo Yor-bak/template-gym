@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Gradients, Shadows, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
-import { supabase } from '@/lib/supabase';
+import { mockDb } from '@/lib/mock-db';
 
 // La cuenta de cliente no se auto-registra: el staff da de alta al miembro en
 // recepción y le entrega un código de activación de 8 caracteres. Aquí solo
@@ -33,12 +33,10 @@ export default function ActivateAccountScreen() {
   async function handleLookupCode() {
     setError(null);
     setLoading(true);
-    const { data, error: lookupError } = await supabase
-      .rpc('lookup_activation_code', { p_code: code.trim().toUpperCase() })
-      .maybeSingle<{ first_name: string; gym_name: string }>();
+    const data = mockDb.lookupActivationCode(code.trim().toUpperCase());
     setLoading(false);
 
-    if (lookupError || !data) {
+    if (!data) {
       setError('Código de activación inválido o ya utilizado. Verifícalo con el gym.');
       return;
     }

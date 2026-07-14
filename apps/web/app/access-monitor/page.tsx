@@ -1,5 +1,4 @@
 'use client';
-import { useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useCallback } from 'react';
 import { Monitor } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
@@ -9,23 +8,31 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MemberAvatar } from '@/components/members/MemberAvatar';
 import { ConnectionIndicator } from '@/components/shared/ConnectionIndicator';
 import { useStore } from '@/lib/store';
-import { supabase } from '@/lib/supabase';
 import { daysUntil } from '@/lib/utils';
 import type { AccessLog } from '@/types';
 
-interface RpcAccessLog {
-  id: string;
-  gym_id: string;
-  member_id: string | null;
-  result: AccessLog['result'];
-  reader: string;
-  raw_qr_code: string | null;
-  scanned_at: string;
+// Mapea el status de negocio del miembro (members.status) al resultado que
+// vería un lector de acceso real. Mientras no exista el backend en FastAPI,
+// esta es la "validate_access" local: sin RPC, sin red.
+function resultFromMemberStatus(status: string): AccessLog['result'] {
+  switch (status) {
+    case 'active':
+      return 'authorized';
+    case 'expiring_soon':
+      return 'expiring_soon';
+    case 'expired':
+      return 'expired';
+    case 'blocked':
+      return 'blocked';
+    case 'temporary_access':
+      return 'temporary_access';
+    default:
+      return 'invalid_qr';
+  }
 }
 
 export default function AccessMonitorPage() {
-  const { members, memberships, accessLogs } = useStore();
-  const queryClient = useQueryClient();
+  const { members, memberships, accessLogs, addAccessLog } = useStore();
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   const [activePopup, setActivePopup] = useState<AccessLog | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState('');
@@ -47,53 +54,36 @@ export default function AccessMonitorPage() {
     setScanning(true);
     try {
       const member = selectedMemberId ? members.find(m => m.id === selectedMemberId) : undefined;
-      let code = `QR-SIM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-
-      if (member) {
-        const { data: accessCode } = await supabase
-          .from('client_access_codes')
-          .select('code')
-          .eq('member_id', member.id)
-          .eq('active', true)
-          .maybeSingle();
-        if (accessCode) code = accessCode.code;
-      }
-
-      const { data: rpcResult, error } = await supabase
-        .rpc('validate_access', { p_code: code, p_reader: 'Entrada principal' })
-        .single<RpcAccessLog>();
-
-      if (error || !rpcResult) return;
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['access-logs'] }),
-        queryClient.invalidateQueries({ queryKey: ['members'] }),
-      ]);
-
+      const rawQrCode = member ? undefined : `QR-SIM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const result = member ? resultFromMemberStatus(member.status) : 'invalid_qr';
+      const timestamp = new Date().toISOString();
       const days = member?.expirationDate ? daysUntil(member.expirationDate) : undefined;
       const membership = member ? memberships.find(ms => ms.id === member.membershipId) : undefined;
 
-      setActivePopup({
-        id: rpcResult.id,
-        gymId: rpcResult.gym_id,
-        memberId: rpcResult.member_id ?? undefined,
+      const entry: AccessLog = {
+        id: `sim-${Date.now()}`,
+        gymId: member?.gymId ?? '',
+        memberId: member?.id,
         memberNumber: member?.memberNumber,
         memberName: member ? `${member.firstName} ${member.lastName}` : undefined,
         membershipName: membership?.name,
-        result: rpcResult.result,
-        timestamp: rpcResult.scanned_at,
-        reader: rpcResult.reader,
+        result,
+        timestamp,
+        reader: 'Entrada principal',
         membershipExpirationDate: member?.expirationDate,
         daysUntilExpiration: days != null && days >= 0 ? days : undefined,
         daysSinceExpiration: days != null && days < 0 ? Math.abs(days) : undefined,
         lastPaymentDate: member?.lastPaymentDate,
         blockReason: member?.blockReason,
-        rawQrCode: rpcResult.raw_qr_code ?? undefined,
-      });
+        rawQrCode,
+      };
+
+      await addAccessLog(entry);
+      setActivePopup(entry);
     } finally {
       setScanning(false);
     }
-  }, [connected, scanning, selectedMemberId, members, memberships, queryClient]);
+  }, [connected, scanning, selectedMemberId, members, memberships, addAccessLog]);
 
   const activeMembers = members.filter(m => m.status !== 'archived');
 

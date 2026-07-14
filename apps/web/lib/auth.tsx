@@ -1,8 +1,7 @@
 'use client';
-import type { Session } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-import { supabase } from './supabase';
+import { staff as staffSeed } from '@/data';
 
 // Roles que pueden entrar al dashboard. client/trainer solo existen para la
 // app móvil — si alguien con esas credenciales intenta entrar aquí, se rechaza.
@@ -27,87 +26,53 @@ interface AuthContextValue {
 
 const AuthCtx = createContext<AuthContextValue | null>(null);
 
-function splitName(fullName: string) {
-  const [firstName, ...rest] = fullName.trim().split(' ');
-  return { firstName: firstName ?? '', lastName: rest.join(' ') };
-}
+const SESSION_KEY = 'gym-mock-session';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setIsLoading(false);
-    });
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => subscription.subscription.unsubscribe();
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem(SESSION_KEY) : null;
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch {
+        window.localStorage.removeItem(SESSION_KEY);
+      }
+    }
+    setIsLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (!session?.user) {
-      setUser(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single()
-      .then(({ data }) => {
-        if (cancelled || !data || !STAFF_ROLES.includes(data.role) || !data.active) return;
-        const { firstName, lastName } = splitName(data.full_name);
-        setUser({
-          id: data.id,
-          gymId: data.gym_id,
-          firstName,
-          lastName,
-          email: session.user.email ?? '',
-          role: data.role,
-        });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user]);
-
   const login = async (email: string, password: string): Promise<{ error: string | null }> => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.session) {
-      return { error: error?.message ?? 'No se pudo iniciar sesión.' };
+    const match = staffSeed.find((s) => s.email.toLowerCase() === email.trim().toLowerCase());
+
+    if (!match || match.password !== password) {
+      return { error: 'Correo o contraseña incorrectos.' };
     }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, active')
-      .eq('id', data.session.user.id)
-      .single();
-
-    if (!profile || !STAFF_ROLES.includes(profile.role)) {
-      await supabase.auth.signOut();
+    if (!STAFF_ROLES.includes(match.role)) {
       return { error: 'Esta cuenta no tiene acceso al panel de administración.' };
     }
-
-    if (!profile.active) {
-      await supabase.auth.signOut();
+    if (!match.active) {
       return { error: 'Esta cuenta está desactivada. Contacta a un administrador.' };
     }
 
+    const nextUser: AuthUser = {
+      id: match.id,
+      gymId: match.gymId ?? null,
+      firstName: match.firstName,
+      lastName: match.lastName,
+      email: match.email,
+      role: match.role,
+    };
+    setUser(nextUser);
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(nextUser));
     return { error: null };
   };
 
   const logout = () => {
-    supabase.auth.signOut();
+    setUser(null);
+    window.localStorage.removeItem(SESSION_KEY);
   };
 
   return <AuthCtx.Provider value={{ user, isLoading, login, logout }}>{children}</AuthCtx.Provider>;

@@ -1,11 +1,17 @@
-import type { Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-import { supabase } from '@/lib/supabase';
+import { mockDb } from '@/lib/mock-db';
 import type { Profile } from '@/types/database';
 
+// Sesión simplificada en modo mock: no hay JWT ni servidor, solo un id de
+// perfil guardado localmente. Cuando exista el backend en FastAPI esto vuelve
+// a ser una sesión real (token + refresh).
+interface MockSession {
+  profileId: string;
+}
+
 interface AuthContextValue {
-  session: Session | null;
+  session: MockSession | null;
   profile: Profile | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -21,44 +27,17 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<MockSession | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const profile = useMemo<Profile | null>(
+    () => (session ? mockDb.findProfile(session.profileId) : null),
+    [session]
+  );
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setIsLoading(false);
-    });
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => subscription.subscription.unsubscribe();
+    setIsLoading(false);
   }, []);
-
-  useEffect(() => {
-    if (!session?.user) {
-      setProfile(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single()
-      .then(({ data }) => {
-        if (!cancelled) setProfile(data as Profile | null);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -66,19 +45,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       isLoading,
       signIn: async (email, password) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error: error?.message ?? null };
+        const { error, profileId } = mockDb.signIn(email, password);
+        if (error || !profileId) return { error };
+        setSession({ profileId });
+        return { error: null };
       },
       activateAccount: async ({ email, password, activationCode }) => {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { activation_code: activationCode } },
-        });
-        return { error: error?.message ?? null };
+        // No inicia sesión automáticamente: el registro original navegaba de
+        // vuelta al login para que el cliente entre con su nueva contraseña.
+        const { error } = mockDb.activateAccount(email, password, activationCode);
+        return { error };
       },
       signOut: async () => {
-        await supabase.auth.signOut();
+        setSession(null);
       },
     }),
     [session, profile, isLoading]

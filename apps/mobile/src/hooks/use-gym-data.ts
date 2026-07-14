@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { supabase } from '@/lib/supabase';
-import type { ClientAccessCode, Member, Profile, Routine, RoutineExercise } from '@/types/database';
+import { mockDb } from '@/lib/mock-db';
+import type { Member, Profile, Routine, RoutineExercise } from '@/types/database';
 
 export type RoutineWithExercises = Routine & { routine_exercises: RoutineExercise[] };
 
@@ -13,35 +13,22 @@ export function useMyMember(profileId?: string) {
   return useQuery({
     queryKey: ['my-member', profileId],
     enabled: !!profileId,
-    queryFn: async (): Promise<Member | null> => {
-      const { data, error } = await supabase
-        .from('members')
-        .select('*')
-        .eq('profile_id', profileId as string)
-        .maybeSingle();
-      if (error) throw error;
-      return data as Member | null;
-    },
+    queryFn: async (): Promise<Member | null> => mockDb.findMemberByProfileId(profileId as string),
   });
 }
 
 /**
  * Código de acceso que se rota solo cada `ACCESS_CODE_ROTATION_SECONDS`
- * mientras la pantalla del QR esté abierta: cada intervalo llama a la RPC
- * `rotate_my_access_code`, que desactiva el código anterior y crea uno nuevo
- * del lado del servidor (nunca confía en nada que mande el cliente). Así una
- * foto del QR deja de servir en cuestión de segundos.
+ * mientras la pantalla del QR esté abierta. En modo mock esto vive en
+ * memoria (ver lib/mock-db.ts); cuando exista el backend en FastAPI, vuelve
+ * a ser una llamada al servidor que también invalida el código anterior.
  */
-export function useRotatingAccessCode(enabled: boolean) {
+export function useRotatingAccessCode(memberId: string | undefined, enabled: boolean) {
   return useQuery({
-    queryKey: ['rotating-access-code'],
-    enabled,
-    refetchInterval: enabled ? ACCESS_CODE_ROTATION_SECONDS * 1000 : false,
-    queryFn: async (): Promise<ClientAccessCode> => {
-      const { data, error } = await supabase.rpc('rotate_my_access_code').single<ClientAccessCode>();
-      if (error) throw error;
-      return data;
-    },
+    queryKey: ['rotating-access-code', memberId],
+    enabled: enabled && !!memberId,
+    refetchInterval: enabled && memberId ? ACCESS_CODE_ROTATION_SECONDS * 1000 : false,
+    queryFn: async () => mockDb.rotateAccessCode(memberId as string),
   });
 }
 
@@ -50,23 +37,7 @@ export function useMyTrainer(memberId?: string) {
   return useQuery({
     queryKey: ['my-trainer', memberId],
     enabled: !!memberId,
-    queryFn: async (): Promise<Profile | null> => {
-      const { data: assignment, error: assignmentError } = await supabase
-        .from('trainer_clients')
-        .select('trainer_id')
-        .eq('client_id', memberId as string)
-        .maybeSingle();
-      if (assignmentError) throw assignmentError;
-      if (!assignment) return null;
-
-      const { data: trainer, error: trainerError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', assignment.trainer_id)
-        .maybeSingle();
-      if (trainerError) throw trainerError;
-      return trainer;
-    },
+    queryFn: async (): Promise<Profile | null> => mockDb.findTrainerForClient(memberId as string),
   });
 }
 
@@ -75,24 +46,7 @@ export function useMyRoutine(memberId?: string) {
   return useQuery({
     queryKey: ['my-routine', memberId],
     enabled: !!memberId,
-    queryFn: async (): Promise<RoutineWithExercises | null> => {
-      const { data: personalized, error: personalizedError } = await supabase
-        .from('routines')
-        .select('*, routine_exercises(*)')
-        .eq('client_id', memberId as string)
-        .maybeSingle();
-      if (personalizedError) throw personalizedError;
-      if (personalized) return personalized as RoutineWithExercises;
-
-      const { data: generic, error: genericError } = await supabase
-        .from('routines')
-        .select('*, routine_exercises(*)')
-        .is('client_id', null)
-        .limit(1)
-        .maybeSingle();
-      if (genericError) throw genericError;
-      return generic as RoutineWithExercises | null;
-    },
+    queryFn: async (): Promise<RoutineWithExercises | null> => mockDb.findRoutineForClientOrGeneric(memberId as string),
   });
 }
 
@@ -101,24 +55,7 @@ export function useMyClients(trainerId?: string) {
   return useQuery({
     queryKey: ['my-clients', trainerId],
     enabled: !!trainerId,
-    queryFn: async (): Promise<Member[]> => {
-      const { data: assignments, error: assignmentsError } = await supabase
-        .from('trainer_clients')
-        .select('client_id')
-        .eq('trainer_id', trainerId as string);
-      if (assignmentsError) throw assignmentsError;
-      if (!assignments?.length) return [];
-
-      const { data: members, error: membersError } = await supabase
-        .from('members')
-        .select('*')
-        .in(
-          'id',
-          assignments.map((a) => a.client_id)
-        );
-      if (membersError) throw membersError;
-      return members ?? [];
-    },
+    queryFn: async (): Promise<Member[]> => mockDb.findClientsForTrainer(trainerId as string),
   });
 }
 
@@ -127,14 +64,6 @@ export function useClientRoutine(memberId?: string) {
   return useQuery({
     queryKey: ['client-routine', memberId],
     enabled: !!memberId,
-    queryFn: async (): Promise<RoutineWithExercises | null> => {
-      const { data, error } = await supabase
-        .from('routines')
-        .select('*, routine_exercises(*)')
-        .eq('client_id', memberId as string)
-        .maybeSingle();
-      if (error) throw error;
-      return data as RoutineWithExercises | null;
-    },
+    queryFn: async (): Promise<RoutineWithExercises | null> => mockDb.findPersonalizedRoutine(memberId as string),
   });
 }

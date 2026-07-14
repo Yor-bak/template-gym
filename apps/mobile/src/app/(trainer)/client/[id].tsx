@@ -11,7 +11,7 @@ import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useClientRoutine } from '@/hooks/use-gym-data';
-import { supabase } from '@/lib/supabase';
+import { mockDb } from '@/lib/mock-db';
 
 type EditableExercise = {
   id?: string;
@@ -72,37 +72,20 @@ export default function ClientRoutineEditorScreen() {
     if (!trainer?.id || !clientId || !title.trim()) return;
     setSaving(true);
 
-    let routineId = routine?.id;
-
-    if (!routineId) {
-      const { data, error } = await supabase
-        .from('routines')
-        .insert({ trainer_id: trainer.id, client_id: clientId, title: title.trim(), goal: goal.trim() || null })
-        .select()
-        .single();
-      if (error) {
-        setSaving(false);
-        return;
-      }
-      routineId = data.id;
-    } else {
-      await supabase.from('routines').update({ title: title.trim(), goal: goal.trim() || null }).eq('id', routineId);
-      await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
-    }
-
-    if (exercises.length) {
-      await supabase.from('routine_exercises').insert(
-        exercises.map((e, index) => ({
-          routine_id: routineId,
-          name: e.name.trim(),
-          sets: Number(e.sets) || 0,
-          reps: e.reps.trim(),
-          rest_seconds: e.rest_seconds ? Number(e.rest_seconds) : null,
-          order_index: index,
-          notes: e.notes.trim() || null,
-        }))
-      );
-    }
+    mockDb.saveClientRoutine({
+      trainerId: trainer.id,
+      clientId,
+      title: title.trim(),
+      goal: goal.trim() || null,
+      exercises: exercises.map((e) => ({
+        name: e.name.trim(),
+        sets: Number(e.sets) || 0,
+        reps: e.reps.trim(),
+        rest_seconds: e.rest_seconds ? Number(e.rest_seconds) : null,
+        order_index: 0,
+        notes: e.notes.trim() || null,
+      })),
+    });
 
     await queryClient.invalidateQueries({ queryKey: ['client-routine', clientId] });
     setSaving(false);
