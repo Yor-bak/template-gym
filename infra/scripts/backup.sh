@@ -17,7 +17,11 @@ TIMESTAMP=$(date +%Y-%m-%d_%H%M%S)
 
 mkdir -p "$BACKUP_DIR"
 
-docker exec gym-db pg_dump -U postgres postgres | gzip > "$BACKUP_DIR/gym-db-$TIMESTAMP.sql.gz"
+# Lee POSTGRES_USER/POSTGRES_DB de infra/.env (mismos valores que usa docker-compose.yml).
+# shellcheck disable=SC1091
+. "$INFRA_DIR/.env"
+
+docker exec gym-db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip > "$BACKUP_DIR/gym-db-$TIMESTAMP.sql.gz"
 
 # Conserva solo los últimos 14 días de backups locales
 find "$BACKUP_DIR" -name "gym-db-*.sql.gz" -mtime +14 -delete

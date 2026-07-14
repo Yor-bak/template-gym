@@ -1,252 +1,56 @@
-# Stack de Supabase self-hosted, recortado para correr en Raspberry Pi.
-# Basado en https://github.com/supabase/supabase/blob/master/docker/docker-compose.yml
-# Se quitaron (comparado con el oficial): Realtime, Edge Functions, imgproxy,
-# Analytics (Logflare/Vector) y Supavisor — no los usa la app todavía y son
-# pesados para un Pi. Se pueden agregar después si hacen falta.
+# Stack de la API de Template-GYM, self-hosted en la Raspberry Pi.
+# Reemplaza el stack de Supabase (7 contenedores) por solo 2: Postgres y la
+# API en FastAPI — ya no hace falta Kong/GoTrue/PostgREST/Storage/Meta/Studio
+# porque FastAPI hace de gateway, autenticación y capa de datos a la vez.
 #
 # Uso:
-#   Arrancar:  docker compose up -d
+#   Arrancar:  docker compose up -d --build
 #   Detener:   docker compose down
 #   Logs:      docker compose logs -f <servicio>
 
-name: gym-supabase
+name: gym-api
 
 services:
 
-  studio:
-    container_name: gym-studio
-    image: supabase/studio:2026.06.03-sha-0bca601
-    restart: always
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "node -e \"fetch('http://localhost:3000/api/platform/profile').then((r) => {if (r.status !== 200) throw new Error(r.status)})\""
-        ]
-      timeout: 10s
-      interval: 5s
-      retries: 3
-      start_period: 20s
-    # Solo accesible desde el propio Pi (localhost) o por SSH tunnel.
-    # A propósito NO se expone por el túnel público / dominio.
-    ports:
-      - "127.0.0.1:3000:3000"
-    environment:
-      HOSTNAME: "0.0.0.0"
-      STUDIO_PG_META_URL: http://meta:8080
-      POSTGRES_PORT: ${POSTGRES_PORT}
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_USER_READ_WRITE: postgres
-      PG_META_CRYPTO_KEY: ${PG_META_CRYPTO_KEY}
-      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS}
-      PGRST_DB_MAX_ROWS: ${PGRST_DB_MAX_ROWS:-1000}
-      PGRST_DB_EXTRA_SEARCH_PATH: ${PGRST_DB_EXTRA_SEARCH_PATH:-public}
-      DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORGANIZATION}
-      DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT}
-      SUPABASE_URL: http://kong:8000
-      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
-      SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
-      AUTH_JWT_SECRET: ${JWT_SECRET}
-      ENABLED_FEATURES_LOGS_ALL: "false"
-
-  kong:
-    container_name: gym-kong
-    image: kong/kong:3.9.1
-    restart: always
-    networks:
-      default:
-        aliases:
-          - api-gw
-    healthcheck:
-      test: ["CMD", "kong", "health"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    depends_on:
-      studio:
-        condition: service_healthy
-    # Este es el puerto que se expone al túnel público / dominio propio.
-    ports:
-      - "${KONG_HTTP_PORT}:8000/tcp"
-    volumes:
-      - ./volumes/api/kong.yml:/home/kong/temp.yml:ro,z
-      - ./volumes/api/kong-entrypoint.sh:/home/kong/kong-entrypoint.sh:ro,z
-    environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /usr/local/kong/kong.yml
-      KONG_DNS_ORDER: LAST,A,CNAME
-      KONG_DNS_NOT_FOUND_TTL: 1
-      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth,request-termination,post-function
-      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
-      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
-      KONG_PROXY_ACCESS_LOG: /dev/stdout combined
-      SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
-      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
-      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
-      ANON_KEY_ASYMMETRIC: ${ANON_KEY_ASYMMETRIC:-}
-      SERVICE_ROLE_KEY_ASYMMETRIC: ${SERVICE_ROLE_KEY_ASYMMETRIC:-}
-      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME}
-      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
-    entrypoint: ["/bin/sh", "/home/kong/kong-entrypoint.sh"]
-
-  auth:
-    container_name: gym-auth
-    image: supabase/gotrue:v2.189.0
-    restart: always
-    healthcheck:
-      test:
-        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
-      timeout: 5s
-      interval: 5s
-      retries: 3
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      GOTRUE_API_HOST: 0.0.0.0
-      GOTRUE_API_PORT: 9999
-      API_EXTERNAL_URL: ${API_EXTERNAL_URL}
-      GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      GOTRUE_SITE_URL: ${SITE_URL}
-      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS}
-      GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP}
-      GOTRUE_JWT_ADMIN_ROLES: service_role
-      GOTRUE_JWT_AUD: authenticated
-      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
-      GOTRUE_JWT_EXP: ${JWT_EXPIRY}
-      GOTRUE_JWT_SECRET: ${JWT_SECRET}
-      GOTRUE_JWT_ISSUER: ${API_EXTERNAL_URL}/auth/v1
-      GOTRUE_EXTERNAL_EMAIL_ENABLED: ${ENABLE_EMAIL_SIGNUP}
-      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: ${ENABLE_ANONYMOUS_USERS}
-      GOTRUE_MAILER_AUTOCONFIRM: ${ENABLE_EMAIL_AUTOCONFIRM}
-      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
-      GOTRUE_SMTP_HOST: ${SMTP_HOST}
-      GOTRUE_SMTP_PORT: ${SMTP_PORT}
-      GOTRUE_SMTP_USER: ${SMTP_USER}
-      GOTRUE_SMTP_PASS: ${SMTP_PASS}
-      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME}
-      GOTRUE_MAILER_URLPATHS_INVITE: ${MAILER_URLPATHS_INVITE}
-      GOTRUE_MAILER_URLPATHS_CONFIRMATION: ${MAILER_URLPATHS_CONFIRMATION}
-      GOTRUE_MAILER_URLPATHS_RECOVERY: ${MAILER_URLPATHS_RECOVERY}
-      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${MAILER_URLPATHS_EMAIL_CHANGE}
-      GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
-      GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
-
-  rest:
-    container_name: gym-rest
-    image: postgrest/postgrest:v14.12
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "postgrest", "--ready"]
-      interval: 5s
-      timeout: 5s
-      retries: 3
-    environment:
-      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS}
-      PGRST_DB_MAX_ROWS: ${PGRST_DB_MAX_ROWS:-1000}
-      PGRST_DB_EXTRA_SEARCH_PATH: ${PGRST_DB_EXTRA_SEARCH_PATH:-public}
-      PGRST_DB_ANON_ROLE: anon
-      PGRST_ADMIN_SERVER_PORT: 3001
-      PGRST_ADMIN_SERVER_HOST: localhost
-      PGRST_JWT_SECRET: ${JWT_SECRET}
-      PGRST_DB_USE_LEGACY_GUCS: "false"
-      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
-      PGRST_APP_SETTINGS_JWT_EXP: ${JWT_EXPIRY}
-    command: ["postgrest"]
-
-  storage:
-    container_name: gym-storage
-    image: supabase/storage-api:v1.60.4
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-      rest:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://storage:5000/status"]
-      timeout: 5s
-      interval: 5s
-      retries: 3
-      start_period: 10s
-    environment:
-      ANON_KEY: ${ANON_KEY}
-      SERVICE_KEY: ${SERVICE_ROLE_KEY}
-      POSTGREST_URL: http://rest:3000
-      AUTH_JWT_SECRET: ${JWT_SECRET}
-      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      STORAGE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
-      REQUEST_ALLOW_X_FORWARDED_PATH: "true"
-      FILE_SIZE_LIMIT: 52428800
-      STORAGE_BACKEND: file
-      GLOBAL_S3_BUCKET: ${GLOBAL_S3_BUCKET}
-      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
-      TENANT_ID: ${STORAGE_TENANT_ID}
-      REGION: ${REGION}
-      # Sin imgproxy en este stack recortado: transformación de imágenes desactivada.
-      ENABLE_IMAGE_TRANSFORMATION: "false"
-      S3_PROTOCOL_ACCESS_KEY_ID: ${S3_PROTOCOL_ACCESS_KEY_ID}
-      S3_PROTOCOL_ACCESS_KEY_SECRET: ${S3_PROTOCOL_ACCESS_KEY_SECRET}
-    volumes:
-      # Bind mount: mover a SSD después es copiar esta carpeta y repuntar la ruta.
-      - ${GYM_DATA_PATH:-./data}/storage:/var/lib/storage
-
-  meta:
-    container_name: gym-meta
-    image: supabase/postgres-meta:v0.96.6
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      PG_META_PORT: 8080
-      PG_META_DB_HOST: ${POSTGRES_HOST}
-      PG_META_DB_PORT: ${POSTGRES_PORT}
-      PG_META_DB_NAME: ${POSTGRES_DB}
-      PG_META_DB_USER: postgres
-      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
-      CRYPTO_KEY: ${PG_META_CRYPTO_KEY}
-
   db:
     container_name: gym-db
-    image: supabase/postgres:17.6.1.136
+    image: postgres:17-alpine
     restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - ./volumes/db/webhooks.sql:/docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql:Z
-      - ./volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
-      - ./volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:Z
-      # Esquema del gym (tablas, RLS): la fuente de verdad vive en /supabase/schema.sql,
-      # aquí solo se monta para que se aplique automáticamente en el primer arranque.
-      - ../supabase/schema.sql:/docker-entrypoint-initdb.d/init-scripts/99-gym-schema.sql:ro,Z
-      # Bind mount: la carpeta que hay que mover al SSD cuando llegue.
-      - ${GYM_DATA_PATH:-./data}/postgres:/var/lib/postgresql/data:Z
-      - db-config:/etc/postgresql-custom
+      # Bind mount: mover a SSD después es copiar esta carpeta y repuntar la ruta.
+      - ${GYM_DATA_PATH:-./data}/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
-    environment:
-      POSTGRES_HOST: /var/run/postgresql
-      PGPORT: ${POSTGRES_PORT}
-      POSTGRES_PORT: ${POSTGRES_PORT}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PGDATABASE: ${POSTGRES_DB}
-      POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXP: ${JWT_EXPIRY}
-    command:
-      ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "log_min_messages=fatal"]
+    ports:
+      # Solo accesible desde el propio Pi — la API es la única que debe hablarle.
+      - "127.0.0.1:5432:5432"
 
-volumes:
-  db-config:
+  api:
+    container_name: gym-api
+    build: ../apps/api
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRY_MIN: ${JWT_EXPIRY_MIN:-1440}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      ENV: production
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    ports:
+      # Este es el puerto que se expone al túnel público / dominio propio.
+      - "${API_PORT:-8000}:8000"

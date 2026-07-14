@@ -4,32 +4,31 @@ Digitalización del registro, accesos y suscripciones de un gimnasio.
 
 ## Estructura
 
-- [`apps/mobile`](apps/mobile) — App móvil (Expo + React Native + TypeScript) con vista de **cliente** (QR de acceso, rutina, entrenador asignado) y vista de **entrenador** (clientes asignados, asignación de rutinas).
-- [`apps/web`](apps/web) — Dashboard web del gym (suscripciones, accesos), a cargo del resto del equipo.
-- [`supabase/schema.sql`](supabase/schema.sql) — Esquema de base de datos compartido (Postgres), con RLS. Es la fuente de verdad del esquema, sin importar si el backend termina en Supabase Cloud o self-hosted.
-- [`infra/`](infra) — Stack de Supabase self-hosted (Docker Compose) para correr su propio backend (ej. en su Raspberry Pi), en vez de usar Supabase Cloud.
+- [`apps/mobile`](apps/mobile) — App móvil (Expo + React Native + TypeScript) con vista de **cliente** (QR de acceso, rutina, ajustes) y vista de **entrenador** (clientes asignados, asignación de rutinas).
+- [`apps/web`](apps/web) — Dashboard web del gym (miembros, pagos, accesos, inventario, staff), a cargo del resto del equipo.
+- [`apps/api`](apps/api) — Backend (Python, FastAPI + SQLAlchemy + PostgreSQL), en construcción por fases.
+- [`infra/`](infra) — Stack de la API self-hosted (Docker Compose) para correr en la Raspberry Pi del equipo.
+- [`supabase/schema.sql`](supabase/schema.sql) — Esquema histórico de cuando el backend era Supabase (ya no se usa). Se deja como referencia del modelo de dominio original mientras se termina de traducir a `apps/api`.
 
-## Backend: Supabase Cloud vs self-hosted
+## Estado actual
 
-Tienen dos formas de levantar el backend (ambas comparten el mismo `supabase/schema.sql`):
+`apps/mobile` y `apps/web` corren en **modo mock** (datos locales en memoria, sin backend real) mientras se construye `apps/api`. Ambas apps tienen la misma forma de datos que va a exponer la API real, así que conectarlas es cuestión de reemplazar la capa de datos, no de rediseñar pantallas.
 
-- **Supabase Cloud** — más rápido para arrancar, cero mantenimiento. Ver pasos abajo.
-- **Self-hosted (Docker en su propia infraestructura)** — ver [`infra/README.md`](infra/README.md) para el setup completo, generación de secretos, y checklist de seguridad antes de exponerlo a internet.
+## Cómo arrancar la app móvil
 
-## Cómo arrancar la app móvil (con Supabase Cloud)
-
-1. Crea un proyecto en [supabase.com](https://supabase.com) y corre [`supabase/schema.sql`](supabase/schema.sql) en su SQL Editor.
-2. `cd apps/mobile && cp .env.example .env` y llena `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` con los valores de tu proyecto (Project Settings → API).
-3. Desde la raíz del repo: `npm install`
-4. `npm run mobile` (o `cd apps/mobile && npm start`) y abre el proyecto con Expo Go o un emulador.
-
-Si en vez de Cloud usan el backend self-hosted de `infra/`, el paso 2 es el mismo pero usando la URL de su dominio y el `ANON_KEY` que genera `infra/scripts/generate-secrets.js`.
+```
+npm install
+npm run mobile
+```
+Abre el proyecto con Expo Go o un emulador. Cuentas de prueba (modo mock): `cliente@test.com` / `entrenador@test.com`, contraseña `123456`.
 
 ## Cómo arrancar el dashboard web
 
 ```
-cd apps/web
-npm run dev
+npm run web
 ```
+Corre en `http://localhost:3000`. Login de prueba (modo demo): `admin@americanfitness.mx` / `admin123`.
 
-Corre en `http://localhost:3000`. Por ahora es un prototipo con datos de ejemplo (`apps/web/data/`); falta conectarlo al mismo backend de Supabase que usa la app móvil.
+## Backend (`apps/api`)
+
+Ver [`apps/api/README.md`](apps/api/README.md) para desarrollo local, y [`infra/README.md`](infra/README.md) para desplegarlo en la Raspberry Pi.
