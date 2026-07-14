@@ -1,6 +1,6 @@
 import { usePreventScreenCapture } from 'expo-screen-capture';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,7 +28,12 @@ const ACCESS_ALLOWED_STATUSES: MemberStatus[] = ['active', 'expiring_soon', 'tem
 export default function ClientHomeScreen() {
   // El QR es la llave de acceso física al gym: bloqueamos capturas de
   // pantalla y grabación solo en esta vista para que no se pueda compartir.
-  usePreventScreenCapture('client-qr-home');
+  // No existe en web (Platform.OS es constante en la vida de la app, así
+  // que esta condición nunca cambia el orden de hooks entre renders).
+  if (Platform.OS !== 'web') {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    usePreventScreenCapture('client-qr-home');
+  }
 
   const { profile } = useAuth();
   const { data: member, isLoading: loadingMember } = useMyMember(profile?.id);
