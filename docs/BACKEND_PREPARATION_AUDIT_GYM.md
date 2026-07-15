@@ -285,3 +285,41 @@ Confirmado ausente en `apps/mobile/src/app/(trainer)/` (cero referencias a `QR`/
 5. **Definir el contrato de error de la API** (código HTTP + payload consistente) antes de escribir el primer endpoint nuevo — el frontend actual demuestra qué pasa cuando no hay ningún error que capturar (CRIT-02): todo se silencia.
 6. **Decidir el mecanismo del QR de acceso** (mantener tabla + rotación vs. migrar a HMAC/JWT autoverificable) antes de implementar D3 — afecta directamente cómo se diseña el endpoint de escaneo del entrenador.
 7. Con lo anterior resuelto, proceder con: `SCHEMA_PROPUESTO.md` (equivalente al de `admin-panel-j2ec`), `API_PROPUESTA.md`, y la implementación por fases con tests, siguiendo el mismo patrón ya usado en `admin-panel-j2ec-backend` y ya iniciado (correctamente, en su mayor parte) en `apps/api`.
+
+---
+
+## 12. Gaps de backend encontrados al conectar apps/web a apps/api (2026-07-15)
+
+Al conectar el dashboard real (`apps/web`) a `apps/api` por primera vez (login, miembros,
+membresías, inventario/ventas, control de acceso QR), se hizo evidente que varias
+mutaciones que el dashboard actual da por sentadas **no tienen endpoint todavía**.
+Se decidió (con el usuario) no inventar ese comportamiento en el frontend ni construir
+los endpoints hoy — solo conectar lo que existe, deshabilitar el resto con un mensaje
+honesto, y dejar la lista exacta aquí para la siguiente fase de construcción del backend:
+
+| Falta en `apps/api` | Se necesita para | Tratamiento hoy en `apps/web` |
+|---|---|---|
+| `PATCH /members/{id}` | Bloquear, desbloquear, archivar, editar, dar acceso temporal a un miembro | `updateMember` muestra alert honesto y rechaza — botones "Bloquear"/"Registrar pago" en `/members` y `/members/[id]` siguen visibles pero no completan la acción |
+| Módulo `payments` completo (no existe ningún router) | Registrar pago al dar de alta un miembro, cobrar renovaciones, cancelar pagos, reportes de ingresos por membresía | `MemberForm` oculta el checkbox "Registrar pago inicial" en modo API real (muestra el mensaje explícito) y el miembro se crea `pending_activation` sin fecha de vencimiento; `addPayment`/`cancelPayment` quedan como stubs |
+| `members.service.create_member` no calcula `status`/`start_date`/`expiration_date` a partir de `membership_plan_id` | Que un miembro recién creado quede con una vigencia real en vez de fechas nulas | Documentado — depende del módulo de pagos de arriba, no es un fix aislado de members |
+| `GET /gyms/me` (o equivalente) — hoy `GET /gyms` es `platform_admin`-only | Que un `gym_admin` pueda leer los datos de su propio gimnasio (nombre, dirección, prefijo, moneda) | `gym` queda `null` en modo API real; `Sidebar`/`PeakHoursReport`/`customer-support` ya degradan con `gym?.name ?? 'Cargando...'` (no crashean) pero nunca dejan de mostrar el placeholder |
+| `MemberRead` no expone `membership_plan_id` ni `created_by` | Mostrar el nombre del plan de un miembro en listados/perfil, y quién lo dio de alta | `Member.membershipId`/`createdBy` quedan `''`; la UI ya tenía fallback `membership?.name ?? '—'` en la mayoría de los sitios |
+| `InventorySaleRead` no expone `registered_by` | Mostrar quién registró una venta | `InventorySale.registeredBy` queda `''` |
+| `AccessLogRead` no expone `member_number`/`member_name` | Mostrar el nombre del miembro directamente en el log de acceso | Se resuelve en el cliente cruzando `member_id` contra la lista de miembros ya cargada (`lib/api/mappers.ts:mapAccessLog`) — no requiere cambio de backend si no se quiere, es solo menos eficiente que traerlo ya resuelto |
+| Ningún módulo de staff (`/staff`, `/settings`, `/platform` sin backend) | Gestión de personal, configuración del gimnasio, panel de plataforma | Fuera de alcance de esta conexión — ver ALTA-01/02/03 en `QA_AUDIT_REPORT_GYM.md` |
+
+**Efecto secundario a tener en cuenta**: el store (`lib/store.tsx`) es un único contexto
+global — no hay un provider distinto por ruta. Esto significa que, aunque `/staff` y
+`/settings` no se conectaron a propósito, sí dejaron de recibir los datos **mock**
+que mostraban antes (`staff`, `gym` ahora llegan vacíos/`null` en modo API real, en vez
+del set de datos demo). No crashean (verificado), pero muestran tablas vacías en vez del
+contenido de ejemplo — es un costo aceptado de mantener una sola fuente de verdad para el
+store en vez de un provider condicional por ruta, documentado aquí para que no se lea como
+un bug nuevo si alguien lo nota.
+
+**Lo que sí quedó 100% conectado y verificado con requests reales** (ver sesión del
+2026-07-15): login (`POST /auth/login`), listar/crear miembros, listar/crear membresías,
+listar/crear inventario, crear venta de inventario (`POST /inventory/sales`, con
+descuento de stock verificado en Postgres), generar y escanear QR de acceso real
+(`POST /access/my-qr-token` + `POST /access/scan`, con aislamiento cross-gym verificado
+en la UI conectada, no solo en el backend).

@@ -4,6 +4,7 @@ import { X, User, AlertTriangle } from 'lucide-react';
 import type { Member, Membership } from '@/types';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
+import { isApiMode } from '@/lib/data/config';
 import { formatCurrency, addMonths, addDays } from '@/lib/utils';
 
 interface MemberFormProps {
@@ -34,7 +35,7 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
     paymentMethod: 'cash' as 'cash' | 'card' | 'transfer' | 'other', paymentAmount: activeMemberships[0]?.price ?? 0,
     emergencyContact: '', emergencyPhone: '', notes: '',
   });
-  const [registerPayment, setRegisterPayment] = useState(true);
+  const [registerPayment, setRegisterPayment] = useState(!isApiMode());
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -90,6 +91,10 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
         notes: form.notes || undefined,
         createdBy: user?.id,
       });
+      // El backend real (apps/api) todavía no tiene módulo de pagos — ver
+      // docs/BACKEND_PREPARATION_AUDIT_GYM.md. En ese modo el checkbox de
+      // "Registrar pago inicial" queda oculto (ver más abajo), así que
+      // registerPayment nunca es true aquí.
       if (registerPayment) {
         await addPayment({
           memberId: created.id,
@@ -184,10 +189,17 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
 
           {/* Payment */}
           <div>
-            <div className="flex items-center gap-3 mb-3">
-              <input type="checkbox" id="regPay" checked={registerPayment} onChange={e => setRegisterPayment(e.target.checked)} className="rounded" />
-              <label htmlFor="regPay" className="text-sm font-semibold text-gray-700">Registrar pago inicial</label>
-            </div>
+            {isApiMode() ? (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Esta acción requiere el módulo de pagos, aún no construido en el backend real. El miembro se
+                creará como &quot;Pendiente de activación&quot;, sin pago registrado.
+              </p>
+            ) : (
+              <div className="flex items-center gap-3 mb-3">
+                <input type="checkbox" id="regPay" checked={registerPayment} onChange={e => setRegisterPayment(e.target.checked)} className="rounded" />
+                <label htmlFor="regPay" className="text-sm font-semibold text-gray-700">Registrar pago inicial</label>
+              </div>
+            )}
             {registerPayment && (
               <div className="grid grid-cols-2 gap-4 pl-6 border-l-2 border-blue-200">
                 <div>
