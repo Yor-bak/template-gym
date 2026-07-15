@@ -38,21 +38,33 @@ let profiles: Profile[] = [
     gym_id: gym.id,
     role: 'client',
     full_name: 'Alejandro Torres Vega',
-    phone: '55 1111 2222',
+    phone: '5511112222',
     avatar_url: null,
     created_at: '2024-01-10T10:00:00Z',
+  },
+  {
+    id: 'profile_client_2',
+    gym_id: gym.id,
+    role: 'client',
+    full_name: 'Daniela Olvera Cruz',
+    phone: '5544556677',
+    avatar_url: null,
+    created_at: '2026-07-02T09:00:00Z',
   },
   {
     id: 'profile_trainer_1',
     gym_id: gym.id,
     role: 'trainer',
     full_name: 'Óscar Ramírez Kim',
-    phone: '55 2211 3344',
+    phone: '5522113344',
     avatar_url: null,
     created_at: '2024-01-10T10:00:00Z',
   },
 ];
 
+// La recepción da de alta al member y su cuenta de acceso en el mismo paso
+// (ya no hay un "código de activación" ni un registro separado del cliente):
+// el member nace con profile_id ya linkeado.
 let members: Member[] = [
   {
     id: 'mem_001',
@@ -61,7 +73,7 @@ let members: Member[] = [
     member_number: 'AF-00001',
     first_name: 'Alejandro',
     last_name: 'Torres Vega',
-    phone: '55 1111 2222',
+    phone: '5511112222',
     email: 'alejandro.torres@email.com',
     birth_date: '1990-05-15',
     photo_url: null,
@@ -76,7 +88,7 @@ let members: Member[] = [
     temporary_access_until: null,
     temporary_access_by: null,
     temporary_access_reason: null,
-    mobile_app_status: 'device_linked',
+    mobile_app_status: 'activated',
     activation_code: null,
     emergency_contact: null,
     emergency_phone: null,
@@ -87,16 +99,16 @@ let members: Member[] = [
   {
     id: 'mem_024',
     gym_id: gym.id,
-    profile_id: null,
+    profile_id: 'profile_client_2',
     member_number: 'AF-00024',
     first_name: 'Daniela',
     last_name: 'Olvera Cruz',
-    phone: '55 4455 6677',
+    phone: '5544556677',
     email: 'daniela.o@email.com',
     birth_date: null,
     photo_url: null,
     membership_plan_id: 'ms_001',
-    status: 'pending_activation',
+    status: 'active',
     start_date: '2026-07-02',
     expiration_date: '2026-08-01',
     last_payment_date: '2026-07-02',
@@ -106,8 +118,8 @@ let members: Member[] = [
     temporary_access_until: null,
     temporary_access_by: null,
     temporary_access_reason: null,
-    mobile_app_status: 'pending',
-    activation_code: 'DEMO1234',
+    mobile_app_status: 'activated',
+    activation_code: null,
     emergency_contact: null,
     emergency_phone: null,
     notes: null,
@@ -140,14 +152,26 @@ let routineExercises: RoutineExercise[] = [
 const accessCodes = new Map<string, ClientAccessCode>();
 
 interface Credential {
-  email: string;
+  phone: string;
   password: string;
+  /** true la primera vez que entra: la recepción le asignó una contraseña
+   * provisional y debe cambiarla antes de usar el resto de la app. */
+  mustChangePassword: boolean;
   profileId: string;
 }
 
-const credentials: Credential[] = [
-  { email: 'cliente@test.com', password: '123456', profileId: 'profile_client_1' },
-  { email: 'entrenador@test.com', password: '123456', profileId: 'profile_trainer_1' },
+// Normaliza para que no importe si el usuario escribe espacios/guiones al
+// teclear su teléfono para entrar.
+function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, '');
+}
+
+let credentials: Credential[] = [
+  { phone: '5511112222', password: '123456', mustChangePassword: false, profileId: 'profile_client_1' },
+  // Cuenta de demo para probar el flujo de "primer ingreso": la recepción
+  // acaba de dar de alta a Daniela con una contraseña provisional.
+  { phone: '5544556677', password: 'temporal123', mustChangePassword: true, profileId: 'profile_client_2' },
+  { phone: '5522113344', password: '123456', mustChangePassword: false, profileId: 'profile_trainer_1' },
 ];
 
 export const mockDb = {
@@ -158,47 +182,24 @@ export const mockDb = {
   findMemberByProfileId: (profileId: string): Member | null =>
     members.find((m) => m.profile_id === profileId) ?? null,
 
-  lookupActivationCode: (code: string): { first_name: string; gym_name: string } | null => {
-    const member = members.find((m) => m.activation_code === code);
-    if (!member) return null;
-    return { first_name: member.first_name, gym_name: gym.name };
-  },
-
-  signIn: (email: string, password: string): { error: string | null; profileId?: string } => {
+  signIn: (
+    phone: string,
+    password: string
+  ): { error: string | null; profileId?: string; mustChangePassword?: boolean } => {
     const cred = credentials.find(
-      (c) => c.email.toLowerCase() === email.trim().toLowerCase() && c.password === password
+      (c) => c.phone === normalizePhone(phone) && c.password === password
     );
-    if (!cred) return { error: 'Correo o contraseña incorrectos.' };
-    return { error: null, profileId: cred.profileId };
+    if (!cred) return { error: 'Teléfono o contraseña incorrectos.' };
+    return { error: null, profileId: cred.profileId, mustChangePassword: cred.mustChangePassword };
   },
 
-  activateAccount: (
-    email: string,
-    password: string,
-    activationCode: string
-  ): { error: string | null; profileId?: string } => {
-    const code = activationCode.trim().toUpperCase();
-    const member = members.find((m) => m.activation_code === code);
-    if (!member) return { error: 'Código de activación inválido o ya utilizado.' };
-
-    const profileId = `profile_${member.id}`;
-    profiles = [
-      ...profiles,
-      {
-        id: profileId,
-        gym_id: gym.id,
-        role: 'client',
-        full_name: `${member.first_name} ${member.last_name}`,
-        phone: member.phone,
-        avatar_url: null,
-        created_at: new Date().toISOString(),
-      },
-    ];
-    members = members.map((m) =>
-      m.id === member.id ? { ...m, profile_id: profileId, mobile_app_status: 'activated', activation_code: null } : m
+  changePassword: (profileId: string, newPassword: string): { error: string | null } => {
+    const cred = credentials.find((c) => c.profileId === profileId);
+    if (!cred) return { error: 'No se encontró la cuenta.' };
+    credentials = credentials.map((c) =>
+      c.profileId === profileId ? { ...c, password: newPassword, mustChangePassword: false } : c
     );
-    credentials.push({ email: email.trim(), password, profileId });
-    return { error: null, profileId };
+    return { error: null };
   },
 
   rotateAccessCode: (memberId: string): ClientAccessCode => {
