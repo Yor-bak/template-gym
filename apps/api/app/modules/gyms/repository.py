@@ -10,6 +10,11 @@ async def get_by_id(db: AsyncSession, gym_id: uuid.UUID) -> Gym | None:
     return await db.get(Gym, gym_id)
 
 
+async def get_by_slug(db: AsyncSession, slug: str) -> Gym | None:
+    result = await db.execute(select(Gym).where(Gym.slug == slug))
+    return result.scalar_one_or_none()
+
+
 async def list_all(db: AsyncSession) -> list[Gym]:
     result = await db.execute(select(Gym).order_by(Gym.name))
     return list(result.scalars().all())
