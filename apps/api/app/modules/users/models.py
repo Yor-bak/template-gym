@@ -12,12 +12,32 @@ from app.core.base_model import Base, TimestampMixin, UUIDPkMixin
 class Role(str, enum.Enum):
     CLIENT = "client"
     TRAINER = "trainer"
-    ADMIN = "admin"
+    # Titular del gimnasio — se crea automáticamente al aprovisionar el
+    # gimnasio (fuera de alcance de Fase 1), nunca vía POST /users.
+    GYM_ADMIN = "gym_admin"
+    # Máximo 1 activo por gimnasio, creado solo por GYM_ADMIN (o
+    # PLATFORM_ADMIN) — ver DECISION_LOG_GYM.md, Bloque 1, decisión 1.
+    GYM_ADMIN_SECONDARY = "gym_admin_secondary"
+    # Máximo 2 activos por gimnasio.
     RECEPTIONIST = "receptionist"
     PLATFORM_ADMIN = "platform_admin"
 
 
-STAFF_ROLES = (Role.ADMIN, Role.RECEPTIONIST, Role.PLATFORM_ADMIN)
+# Roles con privilegios de administrador de gimnasio (nivel de acceso
+# equivalente entre sí, salvo por quién puede crear/desactivar a quién —
+# ver users/service.py). Se usa donde antes solo existía Role.ADMIN.
+ADMIN_ROLES = (Role.GYM_ADMIN, Role.GYM_ADMIN_SECONDARY)
+
+STAFF_ROLES = (Role.GYM_ADMIN, Role.GYM_ADMIN_SECONDARY, Role.RECEPTIONIST, Role.PLATFORM_ADMIN)
+
+# Límites de cuentas activas por gimnasio (None = sin límite). Validados
+# server-side con COUNT(*) dentro de la misma transacción de alta — ver
+# users/service.py:create_staff_user. Nunca confiar solo en la UI.
+STAFF_ROLE_LIMITS: dict[Role, int | None] = {
+    Role.GYM_ADMIN_SECONDARY: 1,
+    Role.RECEPTIONIST: 2,
+    Role.TRAINER: None,
+}
 
 # native_enum=False: se guarda como varchar + CHECK, igual que el `check (role in (...))`
 # del schema.sql original — evita el manejo aparte que exige un tipo ENUM nativo de Postgres

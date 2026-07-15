@@ -14,6 +14,10 @@ from app.modules.gyms.models import Gym  # noqa: F401
 from app.modules.users.models import User  # noqa: F401
 from app.modules.membership_plans.models import MembershipPlan  # noqa: F401
 from app.modules.members.models import Member  # noqa: F401
+from app.modules.inventory.models import InventoryItem  # noqa: F401
+from app.modules.inventory_sales.models import InventorySale, InventorySaleItem  # noqa: F401
+from app.modules.access.models import AccessLog  # noqa: F401
+from app.modules.trainer_clients.models import TrainerClient  # noqa: F401
 
 config = context.config
 

@@ -9,6 +9,11 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret: str
     jwt_expiry_min: int = 1440
+    # Secreto separado del de sesión (jwt_secret) a propósito: el QR de acceso
+    # se firma y valida con mucha más frecuencia (cada 20-30s) y por actores
+    # distintos (recepción, entrenador) — poder rotarlo sin invalidar todas
+    # las sesiones activas (y viceversa) es la razón de mantenerlos separados.
+    qr_secret: str
     cors_origins: str = ""
     env: str = "development"
 

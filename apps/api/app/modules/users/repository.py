@@ -1,9 +1,9 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.users.models import User
+from app.modules.users.models import Role, User
 
 
 async def get_by_id(db: AsyncSession, user_id: uuid.UUID) -> User | None:
@@ -13,6 +13,15 @@ async def get_by_id(db: AsyncSession, user_id: uuid.UUID) -> User | None:
 async def get_by_email(db: AsyncSession, email: str) -> User | None:
     result = await db.execute(select(User).where(User.email == email))
     return result.scalar_one_or_none()
+
+
+async def count_active_by_gym_and_role(db: AsyncSession, *, gym_id: uuid.UUID, role: Role) -> int:
+    result = await db.execute(
+        select(func.count())
+        .select_from(User)
+        .where(User.gym_id == gym_id, User.role == role, User.active.is_(True))
+    )
+    return result.scalar_one()
 
 
 async def create(db: AsyncSession, *, user: User) -> User:
