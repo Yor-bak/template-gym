@@ -114,6 +114,11 @@ export interface RoutineExercise {
   rest_seconds: number | null;
   order_index: number;
   notes: string | null;
+  /** Referencia opcional al catálogo de ejercicios (lib/exercise-catalog.ts)
+   * — cuando existe, la app puede mostrar músculo trabajado e instrucciones
+   * paso a paso. Los ejercicios escritos a mano (sin elegir del catálogo)
+   * simplemente quedan en null. */
+  catalog_id: string | null;
 }
 
 export type AccessResult =

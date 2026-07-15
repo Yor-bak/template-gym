@@ -3,6 +3,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
+import { ExercisePickerModal } from '@/components/exercise-catalog/exercise-picker-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useClientRoutine } from '@/hooks/use-gym-data';
+import type { CatalogExercise } from '@/lib/exercise-catalog';
 import { mockDb } from '@/lib/mock-db';
 
 type EditableExercise = {
@@ -20,9 +22,17 @@ type EditableExercise = {
   reps: string;
   rest_seconds: string;
   notes: string;
+  catalogId: string | null;
 };
 
-const EMPTY_EXERCISE: EditableExercise = { name: '', sets: '3', reps: '10', rest_seconds: '60', notes: '' };
+const EMPTY_EXERCISE: EditableExercise = {
+  name: '',
+  sets: '3',
+  reps: '10',
+  rest_seconds: '60',
+  notes: '',
+  catalogId: null,
+};
 
 export default function ClientRoutineEditorScreen() {
   const { id: clientId } = useLocalSearchParams<{ id: string }>();
@@ -35,6 +45,7 @@ export default function ClientRoutineEditorScreen() {
   const [exercises, setExercises] = useState<EditableExercise[]>([]);
   const [newExercise, setNewExercise] = useState<EditableExercise>(EMPTY_EXERCISE);
   const [saving, setSaving] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -53,6 +64,7 @@ export default function ClientRoutineEditorScreen() {
             reps: e.reps,
             rest_seconds: e.rest_seconds != null ? String(e.rest_seconds) : '',
             notes: e.notes ?? '',
+            catalogId: e.catalog_id,
           }))
       );
     }
@@ -62,6 +74,10 @@ export default function ClientRoutineEditorScreen() {
     if (!newExercise.name.trim()) return;
     setExercises((prev) => [...prev, newExercise]);
     setNewExercise(EMPTY_EXERCISE);
+  }
+
+  function handlePickFromCatalog(exercise: CatalogExercise) {
+    setNewExercise((prev) => ({ ...prev, name: exercise.name, catalogId: exercise.id }));
   }
 
   function removeExercise(index: number) {
@@ -84,6 +100,7 @@ export default function ClientRoutineEditorScreen() {
         rest_seconds: e.rest_seconds ? Number(e.rest_seconds) : null,
         order_index: 0,
         notes: e.notes.trim() || null,
+        catalog_id: e.catalogId,
       })),
     });
 
@@ -119,7 +136,16 @@ export default function ClientRoutineEditorScreen() {
         {exercises.map((exercise, index) => (
           <Card key={exercise.id ?? `new-${index}`} style={styles.exerciseCard}>
             <View style={styles.exerciseCardHeader}>
-              <ThemedText type="smallBold">{exercise.name}</ThemedText>
+              <View style={styles.exerciseNameRow}>
+                <ThemedText type="smallBold">{exercise.name}</ThemedText>
+                {exercise.catalogId && (
+                  <View style={styles.catalogBadge}>
+                    <ThemedText type="small" style={styles.catalogBadgeText}>
+                      Del catálogo
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
               <ThemedText themeColor="danger" type="small" onPress={() => removeExercise(index)}>
                 Quitar
               </ThemedText>
@@ -140,11 +166,12 @@ export default function ClientRoutineEditorScreen() {
           <ThemedText type="small" themeColor="textSecondary">
             Agregar ejercicio
           </ThemedText>
+          <Button label="Elegir del catálogo" variant="secondary" onPress={() => setPickerVisible(true)} />
           <TextField
             label="Nombre"
             value={newExercise.name}
-            onChangeText={(name) => setNewExercise((prev) => ({ ...prev, name }))}
-            placeholder="Ej. Press de banca"
+            onChangeText={(name) => setNewExercise((prev) => ({ ...prev, name, catalogId: null }))}
+            placeholder="Ej. Press de banca (o elige del catálogo arriba)"
           />
           <View style={styles.row}>
             <View style={styles.rowItem}>
@@ -182,6 +209,12 @@ export default function ClientRoutineEditorScreen() {
 
         <Button label="Guardar rutina" onPress={handleSave} loading={saving} disabled={!title.trim()} />
       </ScrollView>
+
+      <ExercisePickerModal
+        visible={pickerVisible}
+        onClose={() => setPickerVisible(false)}
+        onSelect={handlePickFromCatalog}
+      />
     </ThemedView>
   );
 }
@@ -209,6 +242,24 @@ const styles = StyleSheet.create({
   exerciseCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  exerciseNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    flexShrink: 1,
+  },
+  catalogBadge: {
+    backgroundColor: '#1D3B24',
+    paddingHorizontal: Spacing.one,
+    paddingVertical: 2,
+    borderRadius: Spacing.two,
+  },
+  catalogBadgeText: {
+    color: '#3DDC6B',
+    fontSize: 10,
+    fontWeight: '700',
   },
   exerciseNotes: {
     fontStyle: 'italic',

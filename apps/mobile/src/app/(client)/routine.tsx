@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useMyMember, useMyRoutine } from '@/hooks/use-gym-data';
+import { CATEGORY_LABEL_ES, getExerciseById } from '@/lib/exercise-catalog';
 
 // Misma identidad visual oscura que la pantalla de Acceso.
 const colors = Colors.dark;
@@ -17,9 +18,11 @@ export default function ClientRoutineScreen() {
   // Progreso de la sesión: solo vive en esta pantalla mientras está abierta,
   // no se guarda en el servidor (no hay todavía un registro de sesiones).
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     setDoneIds(new Set());
+    setExpandedId(null);
   }, [routine?.id]);
 
   const sortedExercises = routine ? [...routine.routine_exercises].sort((a, b) => a.order_index - b.order_index) : [];
@@ -68,28 +71,52 @@ export default function ClientRoutineScreen() {
             {sortedExercises.map((exercise) => {
               const done = doneIds.has(exercise.id);
               const isCurrent = exercise.id === firstPendingId;
+              const catalogEntry = exercise.catalog_id ? getExerciseById(exercise.catalog_id) : undefined;
+              const expanded = expandedId === exercise.id;
               return (
-                <Pressable
-                  key={exercise.id}
-                  onPress={() => toggleDone(exercise.id)}
-                  style={[styles.exerciseCard, isCurrent && styles.exerciseCardCurrent]}>
-                  <View style={[styles.checkCircle, done && styles.checkCircleDone]}>
-                    {done && <Text style={styles.checkMark}>✓</Text>}
-                  </View>
-                  <View style={styles.exerciseInfo}>
-                    <Text style={styles.exerciseName}>{exercise.name}</Text>
-                    <Text style={styles.exerciseMeta}>
-                      {exercise.sets} × {exercise.reps}
-                      {exercise.rest_seconds != null ? ` · descanso ${exercise.rest_seconds}s` : ''}
-                    </Text>
-                    {exercise.notes && <Text style={styles.exerciseNotes}>{exercise.notes}</Text>}
-                  </View>
-                  {isCurrent && !done && (
-                    <View style={styles.currentBadge}>
-                      <Text style={styles.currentBadgeText}>EN CURSO</Text>
+                <View key={exercise.id} style={[styles.exerciseCard, isCurrent && styles.exerciseCardCurrent]}>
+                  <Pressable style={styles.exerciseRow} onPress={() => toggleDone(exercise.id)}>
+                    <View style={[styles.checkCircle, done && styles.checkCircleDone]}>
+                      {done && <Text style={styles.checkMark}>✓</Text>}
+                    </View>
+                    <View style={styles.exerciseInfo}>
+                      <Text style={styles.exerciseName}>{exercise.name}</Text>
+                      <Text style={styles.exerciseMeta}>
+                        {exercise.sets} × {exercise.reps}
+                        {exercise.rest_seconds != null ? ` · descanso ${exercise.rest_seconds}s` : ''}
+                      </Text>
+                      {exercise.notes && <Text style={styles.exerciseNotes}>{exercise.notes}</Text>}
+                    </View>
+                    {isCurrent && !done && (
+                      <View style={styles.currentBadge}>
+                        <Text style={styles.currentBadgeText}>EN CURSO</Text>
+                      </View>
+                    )}
+                  </Pressable>
+
+                  {catalogEntry && (
+                    <View style={styles.instructionsSection}>
+                      <Pressable onPress={() => setExpandedId(expanded ? null : exercise.id)}>
+                        <Text style={styles.instructionsToggle}>
+                          {expanded ? 'Ocultar instrucciones ▲' : 'Ver instrucciones ▼'}
+                        </Text>
+                      </Pressable>
+                      {expanded && (
+                        <View style={styles.instructionsBody}>
+                          <Text style={styles.instructionsMuscle}>
+                            Trabaja: {CATEGORY_LABEL_ES[catalogEntry.category] ?? catalogEntry.category} ·{' '}
+                            {catalogEntry.target}
+                          </Text>
+                          {catalogEntry.steps.map((step, i) => (
+                            <Text key={i} style={styles.instructionsStep}>
+                              {i + 1}. {step}
+                            </Text>
+                          ))}
+                        </View>
+                      )}
                     </View>
                   )}
-                </Pressable>
+                </View>
               );
             })}
 
@@ -186,9 +213,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.one,
   },
   exerciseCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
     backgroundColor: colors.surface,
     borderRadius: Spacing.three,
     borderWidth: StyleSheet.hairlineWidth,
@@ -198,6 +222,38 @@ const styles = StyleSheet.create({
   exerciseCardCurrent: {
     borderColor: colors.danger,
     borderWidth: 1.5,
+  },
+  exerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  instructionsSection: {
+    marginTop: Spacing.two,
+    paddingTop: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  instructionsToggle: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  instructionsBody: {
+    marginTop: Spacing.two,
+    gap: 6,
+  },
+  instructionsMuscle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+    marginBottom: 2,
+  },
+  instructionsStep: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
   },
   checkCircle: {
     width: 28,

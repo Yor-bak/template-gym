@@ -144,9 +144,9 @@ let routines: Routine[] = [
 ];
 
 let routineExercises: RoutineExercise[] = [
-  { id: 'rte_1', routine_id: 'rt_generic_1', name: 'Sentadilla goblet', sets: 3, reps: '12', rest_seconds: 60, order_index: 0, notes: null },
-  { id: 'rte_2', routine_id: 'rt_generic_1', name: 'Press banca mancuerna', sets: 3, reps: '10', rest_seconds: 60, order_index: 1, notes: null },
-  { id: 'rte_3', routine_id: 'rt_generic_1', name: 'Remo con barra', sets: 3, reps: '10', rest_seconds: 60, order_index: 2, notes: null },
+  { id: 'rte_1', routine_id: 'rt_generic_1', name: 'Sentadilla goblet', sets: 3, reps: '12', rest_seconds: 60, order_index: 0, notes: null, catalog_id: '1760' },
+  { id: 'rte_2', routine_id: 'rt_generic_1', name: 'Press banca mancuerna', sets: 3, reps: '10', rest_seconds: 60, order_index: 1, notes: null, catalog_id: null },
+  { id: 'rte_3', routine_id: 'rt_generic_1', name: 'Remo con barra', sets: 3, reps: '10', rest_seconds: 60, order_index: 2, notes: null, catalog_id: null },
 ];
 
 const accessCodes = new Map<string, ClientAccessCode>();
