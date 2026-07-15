@@ -1038,7 +1038,10 @@ function SupabaseStoreProvider({ children }: { children: React.ReactNode }) {
       if (item.quantity <= 0 || quantity > item.quantity) {
         throw new Error(`No hay existencias suficientes de ${item.name} para completar la venta.`);
       }
-      if (item.salePrice === undefined) throw new Error(`${item.name} no tiene un precio de venta configurado.`);
+      // ALTA-10 (QA_AUDIT_REPORT_GYM.md): un salePrice negativo (fallo de
+      // ALTA-09 en el origen) no debe poder venderse — generaría un total
+      // negativo que se suma tal cual a los ingresos reportados.
+      if (item.salePrice === undefined || item.salePrice <= 0) throw new Error(`${item.name} no tiene un precio de venta válido.`);
       return { item, quantity };
     });
 
@@ -1541,7 +1544,10 @@ function MockStoreProvider({ children }: { children: React.ReactNode }) {
       if (item.quantity <= 0 || quantity > item.quantity) {
         throw new Error(`No hay existencias suficientes de ${item.name} para completar la venta.`);
       }
-      if (item.salePrice === undefined) throw new Error(`${item.name} no tiene un precio de venta configurado.`);
+      // ALTA-10 (QA_AUDIT_REPORT_GYM.md): un salePrice negativo (fallo de
+      // ALTA-09 en el origen) no debe poder venderse — generaría un total
+      // negativo que se suma tal cual a los ingresos reportados.
+      if (item.salePrice === undefined || item.salePrice <= 0) throw new Error(`${item.name} no tiene un precio de venta válido.`);
       return { item, quantity };
     });
 

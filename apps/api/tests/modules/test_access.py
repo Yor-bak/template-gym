@@ -224,3 +224,37 @@ async def test_only_client_role_can_generate_own_qr_token(client: AsyncClient, d
     staff_jwt = await _login(client, "recepcion5@test.com", receptionist_password)
     resp = await client.post("/access/my-qr-token", headers={"Authorization": f"Bearer {staff_jwt}"})
     assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_client_cannot_list_gym_access_logs(client: AsyncClient, db_session: AsyncSession):
+    """ALTA-hallazgo detectado al auditar los endpoints reales de apps/api:
+    GET /access/logs solo comprobaba gym_id != None, así que cualquier CLIENT
+    autenticado podía ver los horarios de entrada/salida de TODOS los
+    miembros del gimnasio, no solo los suyos. Debe quedar reservado a staff."""
+    gym = await make_gym(db_session)
+    member, member_password = await _make_client_user_and_member(
+        db_session,
+        gym_id=gym.id,
+        status="active",
+        expiration_date=date.today() + timedelta(days=20),
+        email="cliente6@test.com",
+    )
+    await db_session.commit()
+
+    client_jwt = await _login(client, "cliente6@test.com", member_password)
+    resp = await client.get("/access/logs", headers={"Authorization": f"Bearer {client_jwt}"})
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_receptionist_can_list_gym_access_logs(client: AsyncClient, db_session: AsyncSession):
+    gym = await make_gym(db_session)
+    receptionist, receptionist_password = await make_user(
+        db_session, role=Role.RECEPTIONIST, gym_id=gym.id, email="recepcion6@test.com"
+    )
+    await db_session.commit()
+
+    staff_jwt = await _login(client, "recepcion6@test.com", receptionist_password)
+    resp = await client.get("/access/logs", headers={"Authorization": f"Bearer {staff_jwt}"})
+    assert resp.status_code == 200, resp.text

@@ -343,6 +343,57 @@ El modal de Agregar/Editar artículo (`apps/web/app/inventory/page.tsx:397-461`)
 
 ---
 
+## Seguimiento de los 11 hallazgos altos (actualizado 2026-07-15)
+
+Clasificación y estado real tras la sesión de corrección. "Verificado" significa
+que se reprodujo el bug con evidencia real (navegador headless o request HTTP
+real) antes del fix, y se volvió a probar el mismo camino después.
+
+| ID | Categoría | Estado | Nota |
+|---|---|---|---|
+| ALTA-01 | Bug de seguridad/permisos | Parcial — ver abajo | Causa raíz de ALTA-02/03; el guard centralizado (middleware) sigue sin existir, solo se remendaron los tres síntomas puntuales. |
+| ALTA-02 | Bug de seguridad/permisos | **Corregido (temporal)** — verificado | Guard client-side (`useEffect` + redirect) agregado a `/staff` y `/settings`. Reproducido con Playwright: recepcionista autenticada → URL directa a `/staff` y `/settings` → antes del fix ambas renderizaban completo; después del fix, ambas redirigen a `/dashboard` sin mostrar contenido. **Es un parche, no el fix definitivo**: estas páginas no tienen backend real detrás todavía (`useStore()` es mock), así que no hay nada que un servidor pueda rechazar hoy. El fix definitivo llega cuando `/staff` y `/settings` se conecten a endpoints reales de `apps/api` con `AuthzService`/`require_role`. |
+| ALTA-03 | Bug de seguridad/permisos | Documentado, no corregido | El guard client-side de `/platform` ya existía. El problema real (datos de todos los gimnasios en el chunk JS, por el `import` estático de `data/gyms.ts`) es estructural de Next.js CSR con datos mock — no se resuelve con más guards, solo desaparece cuando `/platform` haga `fetch` a `GET /gyms` (que en `apps/api` ya es `platform_admin`-only, verificado). Botón "Suspender/Activar" sin `onClick` (bug funcional menor) tampoco se tocó — bajo impacto, se pospone junto con la migración de la página. |
+| ALTA-04 | Bug funcional | **Corregido** — verificado | El botón "Simular desconexión" y su banner eran cosméticos (no deshabilitaban el escáner real). Se optó por la propuesta simple del propio audit: eliminar el botón en vez de cablear un estado `connected` a través de `ScannerViewport`/`ScannerMiniPanel`/`ScannerContext` (hubiera sido una abstención nueva para un caso que nadie usa). Verificado con Playwright: `/access-monitor` ya no contiene el texto "Simular desconexión" ni el banner de "sin conexión". |
+| ALTA-05 | Bug funcional | **Corregido** — verificado por lectura (fix determinístico de una línea) | `'2026-07'` hardcodeado → `new Date().toISOString().slice(0, 7)`. No requiere prueba de navegador: es un cálculo puro sin rama condicional. |
+| ALTA-06 | Bug funcional / validación faltante | **Corregido** — verificado | `MemberForm`: `membershipId` ahora es requerido en `validate()`, el `<select>` tiene placeholder vacío en vez de defaultear a `''` silenciosamente, y el botón "Guardar" se deshabilita si no hay ninguna membresía activa. Reproducido con Playwright: se desactivaron las 6 membresías demo desde `/memberships`, se abrió "Nuevo miembro" → el select mostró "Selecciona una membresía" (sin preseleccionar nada) y el botón de guardar quedó `disabled=true`. |
+| ALTA-07 | Bug funcional | **Corregido** — mismo patrón que `CheckoutModal` | `MemberForm` no tenía `catch`; ahora captura el error y muestra un banner visible (mismo componente/estilo que `CheckoutModal.tsx`, citado en el propio audit como contraejemplo positivo). No se verificó con un fallo real inducido (requeriría mockear `addMember` para lanzar) — el patrón replicado es idéntico al ya probado en `CheckoutModal`. |
+| ALTA-08 | Bug funcional | **Corregido** — verificado por lectura | `PaymentModal` ya no fuerza `status: 'active'` incondicionalmente; ahora compara `newExpiration >= today`. Cambio puntual y determinístico, mismo nivel de riesgo que ALTA-05. |
+| ALTA-09 | Bug funcional / validación faltante | **Corregido** — verificado | El modal de inventario ahora valida `quantity >= 0` y todos los precios `>= 0` en `handleSave`, con mensaje de error visible y sin cerrar el modal. Reproducido con Playwright: Inventario → Tienda → Agregar → cantidad `-3` → clic en "Agregar" → antes del fix se guardaba sin error; después, aparece "La cantidad y el stock mínimo no pueden ser negativos." y el modal permanece abierto. |
+| ALTA-10 | Bug funcional, consecuencia de ALTA-09 | **Corregido** — verificado por lectura | `completeInventorySale` (ambas implementaciones, demo y Supabase, en `lib/store.tsx`) ahora rechaza `item.salePrice <= 0`, no solo `undefined`. |
+| ALTA-11 | Deuda de UX / decisión de producto | **Pendiente, sin corregir a propósito** | Conectar `photoUrl` a `MemberAvatar` es una feature nueva (requiere decidir si existe o se planea un flujo de captura/carga de foto), no un bug de una línea — está fuera del alcance de una sesión de corrección de bugs. Queda documentado para que negocio decida si se construye o se retira el campo del modelo, como ya proponía el hallazgo original. |
+
+### Hallazgos adicionales de seguridad encontrados al auditar `apps/api` (no estaban en la lista original de 11)
+
+Al pedido explícito de blindar los endpoints reales ya existentes con el mismo
+rigor que ALTA-02/03, se auditaron todos los routers de `apps/api` comparando
+cada `GET` de listado contra el rol de quien lo llama. Se encontraron y
+corrigieron tres endpoints que solo comprobaban `current_user.gym_id is not None`
+sin restringir por rol — cualquier `CLIENT` o `TRAINER` autenticado (que sí
+tiene `gym_id`) podía alcanzarlos:
+
+| Endpoint | Antes | Filtración | Después | Verificado con |
+|---|---|---|---|---|
+| `GET /access/logs` | Sin `require_role` | Un miembro (CLIENT) podía ver los horarios de entrada/salida de **todos** los miembros del gimnasio, no solo los suyos | `require_role(*STAFF_ROLES)` | `test_client_cannot_list_gym_access_logs` (403) y `test_receptionist_can_list_gym_access_logs` (200) en `tests/modules/test_access.py` |
+| `GET /inventory/sales` | Sin `require_role` | Cualquier CLIENT/TRAINER podía listar el historial completo de ventas e ingresos del gimnasio | `require_role(*ADMIN_ROLES, RECEPTIONIST)` | `test_client_cannot_list_inventory_sales` (403) y `test_receptionist_can_list_inventory_sales` (200) en `tests/modules/test_inventory_sales.py` |
+| `GET /inventory/items` | Sin `require_role` | Cualquier CLIENT/TRAINER podía listar el inventario completo del gimnasio | `require_role(*ADMIN_ROLES, RECEPTIONIST)` | `test_client_cannot_list_inventory_items` (403) y `test_receptionist_can_list_inventory_items` (200) en `tests/modules/test_inventory_sales.py` |
+
+`GET /membership-plans` se revisó y se dejó **sin restringir por rol a propósito**:
+es un catálogo de precios, no datos personales ni financieros de terceros — un
+CLIENT/TRAINER viendo los planes disponibles no es una filtración.
+
+Además se cerraron los dos pendientes de la sesión anterior marcados como
+"PROPUESTA, PENDIENTE DE CONFIRMACIÓN" en `DECISION_LOG_GYM.md`:
+- **CRIT-02** (manejador global de excepciones): agregado `unhandled_exception_handler`
+  en `app/core/exceptions.py` — cualquier excepción no capturada ahora responde
+  `500 {"detail": "Error interno del servidor"}` en vez de un 500 sin cuerpo JSON.
+  Verificado con `test_unhandled_exception_returns_uniform_500_contract`.
+- **CRIT-03** (validación de rango en `MembershipPlanCreate`): `price`/`duration`
+  ahora usan `Field(gt=0)` y `duration_unit` es un `Literal` cerrado, igual que
+  ya hacía `InventoryItemCreate`. Verificado con `tests/modules/test_membership_plans.py`.
+
+---
+
 ## Tabla resumen de severidad
 
 | Severidad | Cantidad | IDs |

@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { X, User } from 'lucide-react';
+import { X, User, AlertTriangle } from 'lucide-react';
 import type { Member, Membership } from '@/types';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
@@ -26,16 +26,18 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
   const { addMember, addPayment } = useStore();
   const { user } = useAuth();
   const today = new Date().toISOString().split('T')[0];
+  const activeMemberships = memberships.filter(m => m.active);
 
   const [form, setForm] = useState({
     firstName: '', lastName: '', phone: '', email: '', birthDate: '',
-    membershipId: memberships[0]?.id ?? '', startDate: today,
-    paymentMethod: 'cash' as 'cash' | 'card' | 'transfer' | 'other', paymentAmount: memberships[0]?.price ?? 0,
+    membershipId: activeMemberships[0]?.id ?? '', startDate: today,
+    paymentMethod: 'cash' as 'cash' | 'card' | 'transfer' | 'other', paymentAmount: activeMemberships[0]?.price ?? 0,
     emergencyContact: '', emergencyPhone: '', notes: '',
   });
   const [registerPayment, setRegisterPayment] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const selectedMs = memberships.find(m => m.id === form.membershipId);
   const expirationDate = calcExpiration(form.membershipId, memberships, form.startDate);
@@ -56,6 +58,12 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
     if (!form.firstName.trim()) e.firstName = 'Requerido';
     if (!form.lastName.trim()) e.lastName = 'Requerido';
     if (!form.phone.trim()) e.phone = 'Requerido';
+    // ALTA-06 (QA_AUDIT_REPORT_GYM.md): sin este chequeo, un select vacío
+    // (gimnasio sin membresías activas) deja form.membershipId en '' y el
+    // miembro se crea vencido desde el día 0 sin ningún error visible.
+    if (!form.membershipId) e.membershipId = activeMemberships.length === 0
+      ? 'No hay membresías activas — crea una antes de registrar miembros'
+      : 'Selecciona una membresía';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -64,6 +72,7 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
     e.preventDefault();
     if (!validate()) return;
     setLoading(true);
+    setSubmitError(null);
     try {
       const created = await addMember({
         firstName: form.firstName.trim(),
@@ -97,6 +106,8 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
       }
       onSuccess?.(created);
       onClose();
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'No se pudo guardar el miembro.');
     } finally {
       setLoading(false);
     }
@@ -113,6 +124,11 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
           <button onClick={onClose}><X className="w-5 h-5 text-gray-400" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {submitError && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {submitError}
+            </div>
+          )}
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-3">Datos personales</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -147,11 +163,13 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de membresía *</label>
-                <select value={form.membershipId} onChange={e => set('membershipId', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
-                  {memberships.filter(m => m.active).map(m => (
+                <select value={form.membershipId} onChange={e => set('membershipId', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] ${errors.membershipId ? 'border-red-400' : 'border-gray-200'}`}>
+                  <option value="">Selecciona una membresía</option>
+                  {activeMemberships.map(m => (
                     <option key={m.id} value={m.id}>{m.name} — {formatCurrency(m.price)}</option>
                   ))}
                 </select>
+                {errors.membershipId && <p className="text-xs text-red-500 mt-1">{errors.membershipId}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Fecha de inicio</label>
@@ -196,7 +214,7 @@ export function MemberForm({ memberships, onClose, onSuccess }: MemberFormProps)
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-5 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 btn-primary text-sm rounded-lg disabled:opacity-60">
+            <button type="submit" disabled={loading || activeMemberships.length === 0} className="flex-1 py-2.5 btn-primary text-sm rounded-lg disabled:opacity-60">
               {loading ? 'Guardando...' : registerPayment ? 'Guardar y registrar pago' : 'Guardar miembro'}
             </button>
           </div>

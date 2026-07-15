@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.modules.access import repository as access_repo
 from app.modules.access import service as access_service
 from app.modules.access.schemas import AccessLogRead, QrTokenRead, ScanRequest
-from app.modules.users.models import ADMIN_ROLES, Role, User
+from app.modules.users.models import ADMIN_ROLES, STAFF_ROLES, Role, User
 
 router = APIRouter(prefix="/access", tags=["access"])
 
@@ -35,7 +35,11 @@ async def scan_access(
     return AccessLogRead.model_validate(log)
 
 
-@router.get("/logs", response_model=list[AccessLogRead])
+@router.get(
+    "/logs",
+    response_model=list[AccessLogRead],
+    dependencies=[Depends(require_role(*STAFF_ROLES))],
+)
 async def list_access_logs(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

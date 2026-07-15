@@ -34,7 +34,11 @@ async def create_inventory_item(
     return InventoryItemRead.model_validate(item)
 
 
-@router.get("", response_model=list[InventoryItemRead])
+@router.get(
+    "",
+    response_model=list[InventoryItemRead],
+    dependencies=[Depends(require_role(*ADMIN_ROLES, Role.RECEPTIONIST))],
+)
 async def list_inventory_items(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

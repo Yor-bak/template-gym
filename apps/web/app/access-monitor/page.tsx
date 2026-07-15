@@ -16,7 +16,6 @@ export default function AccessMonitorPage() {
   const camera = useCamera();
   const scanner = useScanner();
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-  const [connected, setConnected] = useState(true);
 
   // Este es el monitor "completo" de recepción: siempre trabaja en modo accesos
   // — no ofrece cambiar a Inventario (ScannerMiniPanel no incluye ese control aquí).
@@ -42,10 +41,7 @@ export default function AccessMonitorPage() {
         subtitle="Recepción — Entrada principal"
         actions={
           <div className="flex items-center gap-3">
-            <button onClick={() => setConnected(c => !c)} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5">
-              Simular {connected ? 'desconexión' : 'conexión'}
-            </button>
-            <ConnectionIndicator connected={connected} />
+            <ConnectionIndicator connected={true} />
           </div>
         }
       />
@@ -66,12 +62,6 @@ export default function AccessMonitorPage() {
             <p className="text-xs text-red-500 mt-1">Rechazados hoy</p>
           </div>
         </div>
-
-        {!connected && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-            Sistema sin conexión. Los escaneos no están disponibles en este momento.
-          </div>
-        )}
 
         {/* Escáner de cámara real — misma mini sección de control que en Inicio */}
         <div className="bg-white rounded-lg border border-gray-200 p-5">

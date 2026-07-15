@@ -29,7 +29,11 @@ async def create_inventory_sale(
     return InventorySaleRead.model_validate(sale)
 
 
-@router.get("", response_model=list[InventorySaleRead])
+@router.get(
+    "",
+    response_model=list[InventorySaleRead],
+    dependencies=[Depends(require_role(*ADMIN_ROLES, Role.RECEPTIONIST))],
+)
 async def list_inventory_sales(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

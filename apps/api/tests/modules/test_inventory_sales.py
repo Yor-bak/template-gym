@@ -150,6 +150,64 @@ async def test_sale_cannot_reach_item_from_another_gym(client: AsyncClient, db_s
 
 
 @pytest.mark.asyncio
+async def test_client_cannot_list_inventory_sales(client: AsyncClient, db_session: AsyncSession):
+    """ALTA-hallazgo detectado al auditar los endpoints reales de apps/api:
+    GET /inventory/sales solo comprobaba gym_id != None, así que un CLIENT
+    autenticado (que sí tiene gym_id) podía listar el historial de ventas e
+    ingresos completo del gimnasio. Debe quedar reservado a staff."""
+    gym = await make_gym(db_session)
+    client_user, client_password = await make_user(db_session, role=Role.CLIENT, gym_id=gym.id, email="cliente@test.com")
+    await db_session.commit()
+    token = await _login(client, "cliente@test.com", client_password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.get("/inventory/sales", headers=headers)
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_client_cannot_list_inventory_items(client: AsyncClient, db_session: AsyncSession):
+    gym = await make_gym(db_session)
+    client_user, client_password = await make_user(db_session, role=Role.CLIENT, gym_id=gym.id, email="cliente2@test.com")
+    await db_session.commit()
+    token = await _login(client, "cliente2@test.com", client_password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.get("/inventory/items", headers=headers)
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_receptionist_can_list_inventory_sales(client: AsyncClient, db_session: AsyncSession):
+    gym = await make_gym(db_session)
+    receptionist, password = await make_user(
+        db_session, role=Role.RECEPTIONIST, gym_id=gym.id, email="recepcion@test.com"
+    )
+    item = await _make_item(db_session, gym_id=gym.id, quantity=10, sale_price=50)
+    await db_session.commit()
+    token = await _login(client, "recepcion@test.com", password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.get("/inventory/sales", headers=headers)
+    assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.asyncio
+async def test_receptionist_can_list_inventory_items(client: AsyncClient, db_session: AsyncSession):
+    gym = await make_gym(db_session)
+    receptionist, password = await make_user(
+        db_session, role=Role.RECEPTIONIST, gym_id=gym.id, email="recepcion2b@test.com"
+    )
+    await _make_item(db_session, gym_id=gym.id, quantity=10, sale_price=50)
+    await db_session.commit()
+    token = await _login(client, "recepcion2b@test.com", password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.get("/inventory/items", headers=headers)
+    assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.asyncio
 async def test_inventory_sale_schema_has_no_gym_id_field():
     """Confirma estructuralmente (no solo por comportamiento) que el body de
     creación de venta no puede llevar gym_id — no es un campo que se valide
