@@ -30,7 +30,9 @@ services:
       retries: 10
     ports:
       # Solo accesible desde el propio Pi — la API es la única que debe hablarle.
-      - "127.0.0.1:5432:5432"
+      # DB_PORT configurable porque el Pi comparte host con otros proyectos del
+      # equipo que también usan Postgres en el 5432 por defecto.
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
 
   api:
     container_name: gym-api
