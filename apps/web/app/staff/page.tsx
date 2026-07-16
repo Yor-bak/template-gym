@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { UserPlus, Edit, Power, PowerOff, UserCheck, ShieldCheck, Crown } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
@@ -41,11 +42,22 @@ function pickForRole(list: Staff[], role: CreatableRole): Staff | undefined {
 export default function StaffPage() {
   const { staff, addStaff, updateStaff } = useStore();
   const { user } = useAuth();
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
   const [form, setForm] = useState<StaffFormData>(emptyStaff('admin'));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // ALTA-02 (QA_AUDIT_REPORT_GYM.md): guard temporal client-side — /staff no
+  // tiene backend real todavía (datos de useStore son mock), así que no hay
+  // nada que rechazar server-side. El fix definitivo llega cuando este
+  // módulo se conecte a un endpoint de apps/api con AuthzService.
+  useEffect(() => {
+    if (user && user.role !== 'admin') router.push('/dashboard');
+  }, [user, router]);
+
+  if (!user || user.role !== 'admin') return null;
 
   const canEdit = user?.role === 'admin';
   // El Super Admin del gimnasio (titular del contrato) es un concepto

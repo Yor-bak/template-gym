@@ -180,11 +180,15 @@ function MembersContent() {
                           <td className="px-4 py-3 text-gray-600">{m.phone}</td>
                           <td className="px-4 py-3 text-gray-600">{ms?.name ?? '—'}</td>
                           <td className="px-4 py-3"><StatusBadge status={m.status as Parameters<typeof StatusBadge>[0]['status']} /></td>
-                          <td className="px-4 py-3 text-gray-600">{formatDate(m.expirationDate)}</td>
+                          <td className="px-4 py-3 text-gray-600">{m.expirationDate ? formatDate(m.expirationDate) : '—'}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-xs font-medium ${days < 0 ? 'text-red-600' : days <= 5 ? 'text-yellow-600' : 'text-gray-600'}`}>
-                              {days < 0 ? `−${Math.abs(days)}` : days === 0 ? 'Hoy' : `${days}d`}
-                            </span>
+                            {m.expirationDate ? (
+                              <span className={`text-xs font-medium ${days < 0 ? 'text-red-600' : days <= 5 ? 'text-yellow-600' : 'text-gray-600'}`}>
+                                {days < 0 ? `−${Math.abs(days)}` : days === 0 ? 'Hoy' : `${days}d`}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">

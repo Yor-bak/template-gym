@@ -9,7 +9,7 @@ from app.core.exceptions import ForbiddenError, NotFoundError
 from app.modules.members import repository as members_repo
 from app.modules.members import service as members_service
 from app.modules.members.schemas import MemberCreate, MemberRead
-from app.modules.users.models import Role, User
+from app.modules.users.models import ADMIN_ROLES, Role, User
 
 router = APIRouter(prefix="/members", tags=["members"])
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/members", tags=["members"])
     "",
     response_model=MemberRead,
     status_code=201,
-    dependencies=[Depends(require_role(Role.ADMIN, Role.RECEPTIONIST))],
+    dependencies=[Depends(require_role(*ADMIN_ROLES, Role.RECEPTIONIST))],
 )
 async def create_member(
     payload: MemberCreate,

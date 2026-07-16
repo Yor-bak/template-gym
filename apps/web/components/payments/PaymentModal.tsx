@@ -77,11 +77,15 @@ export function PaymentModal({ member, memberships, onClose, onSuccess }: Paymen
       notes: notes || undefined,
       registeredBy: `${user?.firstName} ${user?.lastName}`,
     });
+    // ALTA-08 (QA_AUDIT_REPORT_GYM.md): status ya no se fuerza a 'active' —
+    // un miembro bloqueado con vencimiento muy antiguo y sin "iniciar desde
+    // hoy" puede seguir vencido tras pagar (p. ej. pago parcial). Solo se
+    // marca activo si la nueva fecha de vencimiento no quedó en el pasado.
     updateMember(member.id, {
       membershipId,
       expirationDate: newExpiration,
       lastPaymentDate: today,
-      status: 'active',
+      status: newExpiration >= today ? 'active' : 'expired',
     });
     setLoading(false);
     onSuccess?.();

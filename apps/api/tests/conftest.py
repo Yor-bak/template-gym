@@ -6,6 +6,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 # TEST_DATABASE_URL: Postgres real (no SQLite) — el schema usa índices únicos
 # parciales y checks que SQLite no replica fielmente. Ver plan de Fase 1.
@@ -23,7 +24,12 @@ from app.modules.members.models import Member, generate_activation_code  # noqa:
 from app.modules.users.models import Role, User  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 
-test_engine = create_async_engine(TEST_DATABASE_URL)
+# NullPool: pytest-asyncio crea un event loop nuevo por test (function-scoped
+# por defecto); un engine con pool persistente reutilizaría conexiones asyncpg
+# atadas al loop de un test anterior, causando "another operation is in
+# progress" en el segundo test que corriera. Con NullPool cada checkout abre
+# una conexión nueva, así que nunca cruza de un loop a otro.
+test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 TestSessionFactory = async_sessionmaker(test_engine, expire_on_commit=False)
 
 
@@ -41,8 +47,17 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     from app.core.database import get_db
 
+    # Una sesión nueva por request, igual que get_db en producción — no
+    # reutilizar `db_session` aquí. Reutilizarla rompía cualquier test que
+    # hiciera 2+ requests HTTP seguidos: el `async with db.begin()` explícito
+    # de los services (p. ej. activation/service.py) deja la sesión con una
+    # transacción autobegin abierta después del primer commit, y el segundo
+    # request fallaba con "A transaction is already begun on this Session"
+    # al intentar abrir la suya. `db_session` sigue siendo la sesión que usan
+    # los tests directamente (factories, asserts contra la BD).
     async def override_get_db():
-        yield db_session
+        async with TestSessionFactory() as session:
+            yield session
 
     app.dependency_overrides[get_db] = override_get_db
     transport = ASGITransport(app=app)

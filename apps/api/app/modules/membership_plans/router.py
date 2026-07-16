@@ -8,7 +8,7 @@ from app.core.exceptions import ForbiddenError
 from app.modules.membership_plans import repository as plans_repo
 from app.modules.membership_plans import service as plans_service
 from app.modules.membership_plans.schemas import MembershipPlanCreate, MembershipPlanRead
-from app.modules.users.models import Role, User
+from app.modules.users.models import ADMIN_ROLES, Role, User
 
 router = APIRouter(prefix="/membership-plans", tags=["membership_plans"])
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/membership-plans", tags=["membership_plans"])
     "",
     response_model=MembershipPlanRead,
     status_code=201,
-    dependencies=[Depends(require_role(Role.ADMIN, Role.PLATFORM_ADMIN))],
+    dependencies=[Depends(require_role(*ADMIN_ROLES, Role.PLATFORM_ADMIN))],
 )
 async def create_membership_plan(
     payload: MembershipPlanCreate,

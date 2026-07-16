@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Save, Building, Shield, CreditCard, Palette, RotateCcw, Camera } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
@@ -25,9 +26,18 @@ const tabs: { key: SettingsTab; label: string; icon: React.ElementType }[] = [
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const { gym, updateGym, resetDemoData } = useStore();
   const camera = useCamera();
   const scanner = useScanner();
+
+  // ALTA-02 (QA_AUDIT_REPORT_GYM.md): guard temporal client-side — /settings
+  // no tiene backend real todavía (datos de useStore son mock), así que no
+  // hay nada que rechazar server-side. El fix definitivo llega cuando este
+  // módulo se conecte a un endpoint de apps/api con AuthzService.
+  useEffect(() => {
+    if (user && user.role !== 'admin') router.push('/dashboard');
+  }, [user, router]);
   const [activeTab, setActiveTab] = useState<SettingsTab>('gym');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -121,6 +131,8 @@ export default function SettingsPage() {
   };
 
   const showsSaveButton = activeTab === 'gym' || activeTab === 'appearance';
+
+  if (!user || user.role !== 'admin') return null;
 
   return (
     <AppShell>
