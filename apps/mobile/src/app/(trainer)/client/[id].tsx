@@ -1,17 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { TextField } from '@/components/ui/text-field';
-import { Spacing } from '@/constants/theme';
+import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
-import { useClientRoutine } from '@/hooks/use-gym-data';
+import { useClientRoutine, useMember } from '@/hooks/use-gym-data';
 import { mockDb } from '@/lib/mock-db';
+
+// Misma identidad visual oscura que el resto de la vista de entrenador.
+const colors = Colors.dark;
 
 type EditableExercise = {
   id?: string;
@@ -28,6 +27,7 @@ export default function ClientRoutineEditorScreen() {
   const { id: clientId } = useLocalSearchParams<{ id: string }>();
   const { profile: trainer } = useAuth();
   const queryClient = useQueryClient();
+  const { data: client } = useMember(clientId);
   const { data: routine, isLoading } = useClientRoutine(clientId);
 
   const [title, setTitle] = useState('');
@@ -93,102 +93,174 @@ export default function ClientRoutineEditorScreen() {
 
   if (isLoading) {
     return (
-      <ThemedView style={styles.container}>
-        <ActivityIndicator style={styles.loader} />
-      </ThemedView>
+      <View style={styles.container}>
+        <ActivityIndicator color={colors.accent} style={styles.loader} />
+      </View>
     );
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <ThemedText type="subtitle">Rutina del cliente</ThemedText>
-
-        <TextField label="Título de la rutina" value={title} onChangeText={setTitle} placeholder="Ej. Fuerza tren superior" />
-        <TextField
-          label="Objetivo"
-          value={goal}
-          onChangeText={setGoal}
-          placeholder="Ej. ganancia_muscular, perdida_grasa"
-        />
-
-        <View style={styles.exerciseListHeader}>
-          <ThemedText type="smallBold">Ejercicios</ThemedText>
+    <View style={styles.container}>
+      <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+        <View style={styles.navRow}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton}>
+            <Text style={styles.backButtonText}>‹ Clientes</Text>
+          </Pressable>
         </View>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {client && (
+            <View style={styles.clientHeader}>
+              <View style={styles.clientAvatar}>
+                <Text style={styles.clientAvatarInitial}>{client.first_name.charAt(0).toUpperCase()}</Text>
+              </View>
+              <View>
+                <Text style={styles.clientName}>
+                  {client.first_name} {client.last_name}
+                </Text>
+                <Text style={styles.clientSubtitle}>Rutina personalizada</Text>
+              </View>
+            </View>
+          )}
 
-        {exercises.map((exercise, index) => (
-          <Card key={exercise.id ?? `new-${index}`} style={styles.exerciseCard}>
-            <View style={styles.exerciseCardHeader}>
-              <ThemedText type="smallBold">{exercise.name}</ThemedText>
-              <ThemedText themeColor="danger" type="small" onPress={() => removeExercise(index)}>
-                Quitar
-              </ThemedText>
-            </View>
-            <ThemedText themeColor="textSecondary" type="small">
-              {exercise.sets} series × {exercise.reps} reps
-              {exercise.rest_seconds ? ` · descanso ${exercise.rest_seconds}s` : ''}
-            </ThemedText>
-            {exercise.notes ? (
-              <ThemedText themeColor="textSecondary" type="small" style={styles.exerciseNotes}>
-                {exercise.notes}
-              </ThemedText>
-            ) : null}
-          </Card>
-        ))}
+          <Field label="Título de la rutina">
+            <TextInput
+              style={styles.input}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Ej. Fuerza tren superior"
+              placeholderTextColor={colors.textSecondary}
+            />
+          </Field>
+          <Field label="Objetivo">
+            <TextInput
+              style={styles.input}
+              value={goal}
+              onChangeText={setGoal}
+              placeholder="Ej. ganancia_muscular, perdida_grasa"
+              placeholderTextColor={colors.textSecondary}
+            />
+          </Field>
 
-        <Card elevated={false} style={styles.newExerciseCard}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Agregar ejercicio
-          </ThemedText>
-          <TextField
-            label="Nombre"
-            value={newExercise.name}
-            onChangeText={(name) => setNewExercise((prev) => ({ ...prev, name }))}
-            placeholder="Ej. Press de banca"
-          />
-          <View style={styles.row}>
-            <View style={styles.rowItem}>
-              <TextField
-                label="Series"
-                value={newExercise.sets}
-                onChangeText={(sets) => setNewExercise((prev) => ({ ...prev, sets }))}
-                keyboardType="number-pad"
-              />
+          <Text style={styles.sectionLabel}>Ejercicios</Text>
+
+          {exercises.map((exercise, index) => (
+            <View key={exercise.id ?? `new-${index}`} style={styles.exerciseCard}>
+              <View style={styles.exerciseCardHeader}>
+                <Text style={styles.exerciseName}>{exercise.name}</Text>
+                <Pressable onPress={() => removeExercise(index)} hitSlop={8}>
+                  <Text style={styles.removeText}>Quitar</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.exerciseMeta}>
+                {exercise.sets} series × {exercise.reps} reps
+                {exercise.rest_seconds ? ` · descanso ${exercise.rest_seconds}s` : ''}
+              </Text>
+              {exercise.notes ? <Text style={styles.exerciseNotes}>{exercise.notes}</Text> : null}
             </View>
-            <View style={styles.rowItem}>
-              <TextField
-                label="Reps"
-                value={newExercise.reps}
-                onChangeText={(reps) => setNewExercise((prev) => ({ ...prev, reps }))}
-                placeholder="8-12"
+          ))}
+
+          <View style={styles.newExerciseCard}>
+            <Text style={styles.newExerciseLabel}>Agregar ejercicio</Text>
+            <Field label="Nombre">
+              <TextInput
+                style={styles.input}
+                value={newExercise.name}
+                onChangeText={(name) => setNewExercise((prev) => ({ ...prev, name }))}
+                placeholder="Ej. Press de banca"
+                placeholderTextColor={colors.textSecondary}
               />
+            </Field>
+            <View style={styles.row}>
+              <View style={styles.rowItem}>
+                <Field label="Series">
+                  <TextInput
+                    style={styles.input}
+                    value={newExercise.sets}
+                    onChangeText={(sets) => setNewExercise((prev) => ({ ...prev, sets }))}
+                    keyboardType="number-pad"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </Field>
+              </View>
+              <View style={styles.rowItem}>
+                <Field label="Reps">
+                  <TextInput
+                    style={styles.input}
+                    value={newExercise.reps}
+                    onChangeText={(reps) => setNewExercise((prev) => ({ ...prev, reps }))}
+                    placeholder="8-12"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </Field>
+              </View>
+              <View style={styles.rowItem}>
+                <Field label="Descanso (s)">
+                  <TextInput
+                    style={styles.input}
+                    value={newExercise.rest_seconds}
+                    onChangeText={(rest_seconds) => setNewExercise((prev) => ({ ...prev, rest_seconds }))}
+                    keyboardType="number-pad"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </Field>
+              </View>
             </View>
-            <View style={styles.rowItem}>
-              <TextField
-                label="Descanso (s)"
-                value={newExercise.rest_seconds}
-                onChangeText={(rest_seconds) => setNewExercise((prev) => ({ ...prev, rest_seconds }))}
-                keyboardType="number-pad"
+            <Field label="Notas (opcional)">
+              <TextInput
+                style={styles.input}
+                value={newExercise.notes}
+                onChangeText={(notes) => setNewExercise((prev) => ({ ...prev, notes }))}
+                placeholderTextColor={colors.textSecondary}
               />
-            </View>
+            </Field>
+            <Pressable
+              style={[styles.secondaryButton, !newExercise.name.trim() && styles.buttonDisabled]}
+              disabled={!newExercise.name.trim()}
+              onPress={addExercise}>
+              <Text style={styles.secondaryButtonText}>Agregar ejercicio</Text>
+            </Pressable>
           </View>
-          <TextField
-            label="Notas (opcional)"
-            value={newExercise.notes}
-            onChangeText={(notes) => setNewExercise((prev) => ({ ...prev, notes }))}
-          />
-          <Button label="Agregar ejercicio" variant="secondary" onPress={addExercise} disabled={!newExercise.name.trim()} />
-        </Card>
 
-        <Button label="Guardar rutina" onPress={handleSave} loading={saving} disabled={!title.trim()} />
-      </ScrollView>
-    </ThemedView>
+          <Pressable
+            style={[styles.primaryButton, (!title.trim() || saving) && styles.buttonDisabled]}
+            disabled={!title.trim() || saving}
+            onPress={handleSave}>
+            {saving ? <ActivityIndicator color={colors.text} /> : <Text style={styles.primaryButtonText}>Guardar rutina</Text>}
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {children}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  navRow: {
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+  },
+  backButtonText: {
+    color: colors.accent,
+    fontSize: 15,
+    fontWeight: '600',
   },
   loader: {
     marginTop: Spacing.five,
@@ -198,25 +270,102 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingBottom: Spacing.six,
   },
-  exerciseListHeader: {
+  clientHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    marginBottom: Spacing.one,
+  },
+  clientAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clientAvatarInitial: {
+    color: colors.accent,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  clientName: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  clientSubtitle: {
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  field: {
+    gap: Spacing.one,
+  },
+  fieldLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  input: {
+    height: 48,
+    borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundElement,
+    color: colors.text,
+    paddingHorizontal: Spacing.three,
+    fontSize: 15,
+  },
+  sectionLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginTop: Spacing.two,
   },
   exerciseCard: {
+    backgroundColor: colors.surface,
     borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: Spacing.three,
-    gap: Spacing.half,
+    gap: 4,
   },
   exerciseCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  exerciseName: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  removeText: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  exerciseMeta: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
   exerciseNotes: {
+    color: colors.textSecondary,
+    fontSize: 12,
     fontStyle: 'italic',
   },
   newExerciseCard: {
+    backgroundColor: colors.surface,
     borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: Spacing.three,
     gap: Spacing.two,
+  },
+  newExerciseLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
   },
   row: {
     flexDirection: 'row',
@@ -224,5 +373,34 @@ const styles = StyleSheet.create({
   },
   rowItem: {
     flex: 1,
+  },
+  primaryButton: {
+    height: 52,
+    borderRadius: Spacing.three,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  secondaryButton: {
+    height: 48,
+    borderRadius: Spacing.three,
+    backgroundColor: colors.backgroundElement,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
 });

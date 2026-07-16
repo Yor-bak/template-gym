@@ -81,9 +81,17 @@ export interface Member {
   created_at: string;
 }
 
-export interface ClientAccessCode {
+/**
+ * Código de acceso rotativo. `owner_id` es el `Member.id` cuando
+ * `owner_role` es "client", o el `Profile.id` del entrenador cuando es
+ * "trainer" — ambos roles usan el mismo mecanismo para entrar al gym por la
+ * puerta de acceso, y el mismo código es lo que un entrenador escanea desde
+ * su vista para identificar (y asignarse) a un cliente.
+ */
+export interface AccessCode {
   id: string;
-  member_id: string;
+  owner_id: string;
+  owner_role: 'client' | 'trainer';
   code: string;
   active: boolean;
   created_at: string;
