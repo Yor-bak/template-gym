@@ -14,6 +14,12 @@ RUN npm ci
 FROM node:20-slim AS builder
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
+# npm workspaces no siempre hospeda todo en el node_modules raíz — cuando
+# hay conflicto de versión con otro workspace (p. ej. react/react-dom con
+# apps/mobile), npm anida una copia propia en apps/web/node_modules
+# (@zxing/browser, @zxing/library, lucide-react quedaron ahí). Sin esta
+# copia, "npm run build --workspace apps/web" no los encuentra.
+COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
 COPY . .
 
 # NEXT_PUBLIC_* se incrusta en el bundle del cliente en build time — tiene
