@@ -1,0 +1,13 @@
+services:
+  frontend:
+    build:
+      # Contexto = raíz del monorepo (dos niveles arriba de apps/web) — ver
+      # Dockerfile.prod para el porqué.
+      context: ../..
+      dockerfile: apps/web/Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: j2ec-gym-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3020:3000"

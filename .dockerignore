@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.next
+**/.next
+.git
+recovered-web
+supabase
+handoff verdefosfo
+cambios-cesar
+docs
+tsconfig.tsbuildinfo
+**/tsconfig.tsbuildinfo
+apps/api/.venv
+apps/mobile/.expo
