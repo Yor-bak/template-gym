@@ -18,8 +18,21 @@ import type {
   Trainer,
   TrainerAssignment,
 } from '@/types';
+import { api, ApiError } from './api/client';
+import {
+  mapAccessLog,
+  mapInventoryItem,
+  mapInventorySale,
+  mapMember,
+  mapMembership,
+  type ApiAccessLog,
+  type ApiInventoryItem,
+  type ApiInventorySale,
+  type ApiMember,
+  type ApiMembershipPlan,
+} from './api/mappers';
 import { useAuth } from './auth';
-import { isDemoMode } from './data/config';
+import { isApiMode, isDemoMode } from './data/config';
 import { buildSeedState, clearDemoState, loadDemoState, saveDemoState, type DemoState } from './data/mock/seed';
 import { supabase } from './supabase';
 import { daysUntil, getAccessResultFromMemberStatus, normalizePhone } from './utils';
@@ -1038,7 +1051,10 @@ function SupabaseStoreProvider({ children }: { children: React.ReactNode }) {
       if (item.quantity <= 0 || quantity > item.quantity) {
         throw new Error(`No hay existencias suficientes de ${item.name} para completar la venta.`);
       }
-      if (item.salePrice === undefined) throw new Error(`${item.name} no tiene un precio de venta configurado.`);
+      // ALTA-10 (QA_AUDIT_REPORT_GYM.md): un salePrice negativo (fallo de
+      // ALTA-09 en el origen) no debe poder venderse — generaría un total
+      // negativo que se suma tal cual a los ingresos reportados.
+      if (item.salePrice === undefined || item.salePrice <= 0) throw new Error(`${item.name} no tiene un precio de venta válido.`);
       return { item, quantity };
     });
 
@@ -1541,7 +1557,10 @@ function MockStoreProvider({ children }: { children: React.ReactNode }) {
       if (item.quantity <= 0 || quantity > item.quantity) {
         throw new Error(`No hay existencias suficientes de ${item.name} para completar la venta.`);
       }
-      if (item.salePrice === undefined) throw new Error(`${item.name} no tiene un precio de venta configurado.`);
+      // ALTA-10 (QA_AUDIT_REPORT_GYM.md): un salePrice negativo (fallo de
+      // ALTA-09 en el origen) no debe poder venderse — generaría un total
+      // negativo que se suma tal cual a los ingresos reportados.
+      if (item.salePrice === undefined || item.salePrice <= 0) throw new Error(`${item.name} no tiene un precio de venta válido.`);
       return { item, quantity };
     });
 
@@ -1766,7 +1785,198 @@ function MockStoreProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ----------------------------------------------------------------------------
+// Modo API real: habla con apps/api (FastAPI). Solo cubre los módulos que ya
+// tienen backend completo — miembros (alta/listado, sin edición: no existe
+// PATCH /members todavía), membresías, inventario, ventas de inventario y
+// control de acceso QR. El resto de AppStore (pagos, staff, entrenadores,
+// rutinas, y cualquier mutación de miembro más allá de crear) no tiene
+// endpoint real hoy: se deja documentado explícitamente en
+// docs/BACKEND_PREPARATION_AUDIT_GYM.md y cada función avisa con un mensaje
+// honesto (no un genérico "no disponible") en vez de fallar en silencio o
+// inventar comportamiento que el backend no tiene.
+// ----------------------------------------------------------------------------
+function notImplemented(action: string, reason: string): never {
+  const message = `${action}: ${reason}`;
+  if (typeof window !== 'undefined') window.alert(message);
+  throw new Error(message);
+}
+
+const PAYMENTS_PENDING = 'Esta acción requiere el módulo de pagos, aún no construido en el backend real (ver docs/BACKEND_PREPARATION_AUDIT_GYM.md).';
+const MEMBER_UPDATE_PENDING = 'Editar/bloquear miembros requiere PATCH /members, aún no construido en el backend real (ver docs/BACKEND_PREPARATION_AUDIT_GYM.md).';
+const STAFF_PENDING = 'La gestión de Personal no está conectada al backend real todavía (módulo /staff sigue en modo demo, ver ALTA-01/02 en QA_AUDIT_REPORT_GYM.md).';
+const TRAINERS_PENDING = 'La asignación manual de entrenadores no tiene endpoint en el backend real todavía.';
+const ROUTINES_PENDING = 'Las rutinas no tienen endpoint en el backend real todavía.';
+
+function ApiStoreProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const [members, setMembers] = useState<Member[]>([]);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [inventorySales, setInventorySales] = useState<InventorySale[]>([]);
+  const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // AccessLogRead no trae member_number/member_name (backend todavía no lo
+  // expone) — se resuelven aquí contra los miembros ya cargados, no se dejan
+  // en blanco pudiendo evitarlo.
+  const memberById = (list: Member[]) =>
+    new Map(list.map((m) => [m.id, { memberNumber: m.memberNumber, name: `${m.firstName} ${m.lastName}`.trim() }]));
+
+  const refetchInventory = async () => {
+    const rows = await api.get<ApiInventoryItem[]>('/inventory/items');
+    setInventory(rows.map(mapInventoryItem));
+  };
+
+  useEffect(() => {
+    if (!user) {
+      setMembers([]); setMemberships([]); setInventory([]); setInventorySales([]); setAccessLogs([]);
+      setIsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      try {
+        const [memberRows, membershipRows, inventoryRows] = await Promise.all([
+          api.get<ApiMember[]>('/members'),
+          api.get<ApiMembershipPlan[]>('/membership-plans'),
+          api.get<ApiInventoryItem[]>('/inventory/items').catch(() => [] as ApiInventoryItem[]),
+        ]);
+        if (cancelled) return;
+        const mappedMembers = memberRows.map(mapMember);
+        setMembers(mappedMembers);
+        setMemberships(membershipRows.map(mapMembership));
+        setInventory(inventoryRows.map(mapInventoryItem));
+        const itemNameById = new Map(inventoryRows.map((i) => [i.id, i.name]));
+        const [saleRows, logRows] = await Promise.all([
+          api.get<ApiInventorySale[]>('/inventory/sales').catch(() => [] as ApiInventorySale[]),
+          api.get<ApiAccessLog[]>('/access/logs').catch(() => [] as ApiAccessLog[]),
+        ]);
+        if (cancelled) return;
+        setInventorySales(saleRows.map((r) => mapInventorySale(r, itemNameById)));
+        setAccessLogs(logRows.map((r) => mapAccessLog(r, memberById(mappedMembers))));
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const addMember: AppStore['addMember'] = async (input) => {
+    const created = await api.post<ApiMember>('/members', {
+      first_name: input.firstName ?? '',
+      last_name: input.lastName ?? '',
+      phone: input.phone ?? '',
+      email: input.email || undefined,
+      birth_date: input.birthDate || undefined,
+      membership_plan_id: input.membershipId || undefined,
+      emergency_contact: input.emergencyContact || undefined,
+      emergency_phone: input.emergencyPhone || undefined,
+      notes: input.notes || undefined,
+    });
+    const mapped = mapMember(created);
+    setMembers((prev) => [mapped, ...prev]);
+    return mapped;
+  };
+
+  const addMembership: AppStore['addMembership'] = async (input) => {
+    const created = await api.post<ApiMembershipPlan>('/membership-plans', {
+      name: input.name ?? '',
+      price: input.price ?? 0,
+      duration: input.duration ?? 1,
+      duration_unit: input.durationUnit ?? 'months',
+      tolerance_days: input.toleranceDays ?? 0,
+      description: input.description || undefined,
+    });
+    const mapped = mapMembership(created);
+    setMemberships((prev) => [...prev, mapped]);
+    return mapped;
+  };
+
+  const addInventoryItem: AppStore['addInventoryItem'] = (item) => {
+    api.post<ApiInventoryItem>('/inventory/items', {
+      area: item.area,
+      name: item.name,
+      sku: item.sku || undefined,
+      quantity: item.quantity,
+      sale_price: item.salePrice || undefined,
+      status: item.status,
+    }).then((created) => setInventory((prev) => [mapInventoryItem(created), ...prev]))
+      .catch((err) => window.alert(err instanceof ApiError ? err.message : 'No se pudo guardar el artículo.'));
+  };
+
+  const completeInventorySale: AppStore['completeInventorySale'] = async ({ items, method, memberId, notes }) => {
+    const created = await api.post<ApiInventorySale>('/inventory/sales', {
+      items: items.map((l) => ({ item_id: l.itemId, quantity: l.quantity })),
+      method,
+      member_id: memberId || undefined,
+      notes: notes || undefined,
+    });
+    const itemNameById = new Map(inventory.map((i) => [i.id, i.name]));
+    const mapped = mapInventorySale(created, itemNameById);
+    setInventorySales((prev) => [mapped, ...prev]);
+    // La venta descuenta stock en el backend — se refresca el inventario
+    // real en vez de recalcular cantidades a mano en el cliente.
+    refetchInventory().catch(() => {});
+    return mapped;
+  };
+
+  const validateAccessCode: AppStore['validateAccessCode'] = async (code) => {
+    const created = await api.post<ApiAccessLog>('/access/scan', { token: code, reader: 'Dashboard — recepción' });
+    const mapped = mapAccessLog(created, memberById(members));
+    setAccessLogs((prev) => [mapped, ...prev]);
+    return mapped;
+  };
+
+  return (
+    <StoreContext.Provider
+      value={{
+        gym: null,
+        members,
+        payments: [],
+        accessLogs,
+        memberships,
+        staff: [],
+        inventory,
+        inventorySales,
+        trainers: [],
+        trainerAssignments: [],
+        genericRoutines: [],
+        isLoading,
+        updateGym: async () => notImplemented('Configuración del gimnasio', STAFF_PENDING),
+        addMember,
+        updateMember: async () => notImplemented('Actualizar miembro', MEMBER_UPDATE_PENDING),
+        addPayment: async () => notImplemented('Registrar pago', PAYMENTS_PENDING),
+        cancelPayment: async () => notImplemented('Cancelar pago', PAYMENTS_PENDING),
+        addAccessLog: async () => notImplemented('Registrar acceso manual', 'Usa el escaneo real (/access/scan) — no existe un endpoint para insertar accesos manuales todavía.'),
+        updateMembership: async () => notImplemented('Editar membresía', 'No existe PATCH /membership-plans todavía en el backend real.'),
+        addMembership,
+        addStaff: async () => notImplemented('Crear personal', STAFF_PENDING),
+        updateStaff: async () => notImplemented('Editar personal', STAFF_PENDING),
+        addInventoryItem,
+        updateInventoryItem: () => notImplemented('Editar artículo', 'No existe PATCH /inventory/items todavía en el backend real.'),
+        deleteInventoryItem: () => notImplemented('Eliminar artículo', 'No existe DELETE /inventory/items todavía en el backend real.'),
+        completeInventorySale,
+        cancelInventorySale: async () => notImplemented('Cancelar venta', 'No existe endpoint para cancelar ventas todavía en el backend real.'),
+        assignTrainer: async () => notImplemented('Asignar entrenador', TRAINERS_PENDING),
+        unassignTrainer: async () => notImplemented('Quitar entrenador', TRAINERS_PENDING),
+        addGenericRoutine: async () => notImplemented('Crear rutina', ROUTINES_PENDING),
+        updateGenericRoutine: async () => notImplemented('Editar rutina', ROUTINES_PENDING),
+        deleteGenericRoutine: async () => notImplemented('Eliminar rutina', ROUTINES_PENDING),
+        replaceRoutineExercises: async () => notImplemented('Editar ejercicios', ROUTINES_PENDING),
+        simulateAccess: async () => notImplemented('Simular acceso', 'Usa el escaneo real — no aplica en el backend real.'),
+        validateAccessCode,
+        resetDemoData: () => {},
+      }}>
+      {children}
+    </StoreContext.Provider>
+  );
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
+  if (isApiMode()) return <ApiStoreProvider>{children}</ApiStoreProvider>;
   return isDemoMode() ? (
     <MockStoreProvider>{children}</MockStoreProvider>
   ) : (

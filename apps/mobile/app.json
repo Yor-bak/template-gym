@@ -36,6 +36,12 @@
       ],
       "expo-secure-store",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Se usa la cámara para escanear el código QR de acceso del cliente y asignártelo."
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

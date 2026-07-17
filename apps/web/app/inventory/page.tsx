@@ -86,6 +86,7 @@ export default function InventoryPage() {
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm('cardio'));
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [globalScannerOpen, setGlobalScannerOpen] = useState(false);
 
   const areaItems = useMemo(
@@ -114,9 +115,9 @@ export default function InventoryPage() {
   const outCount = areaItems.filter(i => i.status === 'out_of_service').length;
   const lowStockCount = areaItems.filter(i => i.minStock !== undefined && i.quantity <= i.minStock).length;
 
-  const openAdd = () => { setEditing(null); setForm(emptyForm(area)); setModalOpen(true); };
-  const openEdit = (item: InventoryItem) => { setEditing(item); setForm(fromItem(item)); setModalOpen(true); };
-  const closeModal = () => { setModalOpen(false); setEditing(null); };
+  const openAdd = () => { setEditing(null); setForm(emptyForm(area)); setFormError(null); setModalOpen(true); };
+  const openEdit = (item: InventoryItem) => { setEditing(item); setForm(fromItem(item)); setFormError(null); setModalOpen(true); };
+  const closeModal = () => { setModalOpen(false); setEditing(null); setFormError(null); };
 
   const openGlobalScanner = () => {
     scanner.setMode('inventory');
@@ -136,6 +137,24 @@ export default function InventoryPage() {
   const handleSave = () => {
     if (!form.name.trim()) return;
     const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
+    // ALTA-09/ALTA-10 (QA_AUDIT_REPORT_GYM.md): el modal no usa <form>, así
+    // que `min`/`type="number"` en los inputs son puramente cosméticos y
+    // nunca se validan — hay que rechazar explícitamente aquí cantidades y
+    // precios negativos antes de guardar.
+    setFormError(null);
+    const quantity = num(form.quantity) ?? 0;
+    const minStock = num(form.minStock);
+    const purchasePrice = isAdmin ? num(form.purchasePrice) : editing?.purchasePrice;
+    const repairPrice = isAdmin ? num(form.repairPrice) : editing?.repairPrice;
+    const salePrice = isAdmin ? num(form.salePrice) : editing?.salePrice;
+    if (quantity < 0 || (minStock ?? 0) < 0) {
+      setFormError('La cantidad y el stock mínimo no pueden ser negativos.');
+      return;
+    }
+    if ((purchasePrice ?? 0) < 0 || (repairPrice ?? 0) < 0 || (salePrice ?? 0) < 0) {
+      setFormError('Los precios no pueden ser negativos.');
+      return;
+    }
     const item: InventoryItem = {
       id: editing?.id ?? `inv_${Date.now()}`,
       gymId: 'gym_001',
@@ -145,16 +164,16 @@ export default function InventoryPage() {
       model: form.model.trim() || undefined,
       serialNumber: form.serialNumber.trim() || undefined,
       sku: form.sku.trim() || undefined,
-      quantity: num(form.quantity) ?? 0,
-      minStock: num(form.minStock),
+      quantity,
+      minStock,
       unitMeasure: form.unitMeasure.trim() || undefined,
       location: form.location.trim() || undefined,
       status: form.status,
       purchaseDate: form.purchaseDate || undefined,
       // Los campos de precio solo los edita el admin; para recepcionista se conservan.
-      purchasePrice: isAdmin ? num(form.purchasePrice) : editing?.purchasePrice,
-      repairPrice: isAdmin ? num(form.repairPrice) : editing?.repairPrice,
-      salePrice: isAdmin ? num(form.salePrice) : editing?.salePrice,
+      purchasePrice,
+      repairPrice,
+      salePrice,
       supplier: form.supplier.trim() || undefined,
       lastMaintenance: form.lastMaintenance || undefined,
       nextMaintenance: form.nextMaintenance || undefined,
@@ -400,6 +419,11 @@ export default function InventoryPage() {
             <div className="px-6 py-4 border-b border-gray-100 sticky top-0 bg-white">
               <h3 className="font-semibold text-gray-900">{editing ? 'Editar artículo' : 'Agregar artículo'}</h3>
             </div>
+            {formError && (
+              <div className="mx-6 mt-4 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Área">
                 <select value={form.area} onChange={e => set('area', e.target.value)} className="input">

@@ -10,34 +10,74 @@ import { CATEGORY_LABEL_ES, getExerciseById } from '@/lib/exercise-catalog';
 // Misma identidad visual oscura que la pantalla de Acceso.
 const colors = Colors.dark;
 
+function formatElapsed(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 export default function ClientRoutineScreen() {
   const { profile } = useAuth();
   const { data: member } = useMyMember(profile?.id);
   const { data: routine, isLoading } = useMyRoutine(member?.id);
 
-  // Progreso de la sesión: solo vive en esta pantalla mientras está abierta,
-  // no se guarda en el servidor (no hay todavía un registro de sesiones).
-  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+  // Progreso y tiempo de la sesión: solo viven en esta pantalla mientras está
+  // abierta, no se guardan en el servidor (no hay todavía un registro de sesiones).
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [finishedAt, setFinishedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
     setDoneIds(new Set());
     setExpandedId(null);
+    setStartedAt(null);
+    setFinishedAt(null);
+    setElapsedSeconds(0);
   }, [routine?.id]);
+
+  // El temporizador corre mientras la rutina está iniciada y no se ha
+  // terminado; se congela en cuanto se marcan todos los ejercicios.
+  useEffect(() => {
+    if (!startedAt || finishedAt) return;
+    const tick = () => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startedAt, finishedAt]);
 
   const sortedExercises = routine ? [...routine.routine_exercises].sort((a, b) => a.order_index - b.order_index) : [];
   const total = sortedExercises.length;
   const doneCount = sortedExercises.filter((e) => doneIds.has(e.id)).length;
   const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
   const firstPendingId = sortedExercises.find((e) => !doneIds.has(e.id))?.id;
+  const started = startedAt !== null;
 
   function toggleDone(id: string) {
     setDoneIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+
+      if (next.size === total && !finishedAt) setFinishedAt(Date.now());
+      else if (next.size < total && finishedAt) setFinishedAt(null);
+
       return next;
     });
+  }
+
+  function startRoutine() {
+    setDoneIds(new Set());
+    setFinishedAt(null);
+    setElapsedSeconds(0);
+    setStartedAt(Date.now());
+  }
+
+  function restartRoutine() {
+    setDoneIds(new Set());
+    setStartedAt(null);
+    setFinishedAt(null);
+    setElapsedSeconds(0);
   }
 
   return (
@@ -47,20 +87,34 @@ export default function ClientRoutineScreen() {
           <ActivityIndicator color={colors.danger} style={styles.loader} />
         ) : !routine ? (
           <Text style={styles.empty}>
-            Aún no hay una rutina disponible. Cuando tu entrenador te asigne una, o el gym publique rutinas
-            genéricas, aparecerán aquí.
+            Todavía no tienes una rutina asignada. En cuanto tu entrenador te asigne una, aparecerá aquí.
           </Text>
+        ) : !started ? (
+          <View style={styles.startScreen}>
+            <View style={styles.headerCard}>
+              <Text style={styles.routineTitle}>{routine.title}</Text>
+              <Text style={styles.headerMeta}>Personalizada por tu entrenador</Text>
+              {routine.goal && <Text style={styles.goalText}>{routine.goal}</Text>}
+              <Text style={styles.exerciseCountText}>
+                {total} ejercicio{total === 1 ? '' : 's'}
+              </Text>
+            </View>
+            <Pressable style={styles.startButton} onPress={startRoutine} disabled={total === 0}>
+              <Text style={styles.startButtonText}>Iniciar rutina</Text>
+            </Pressable>
+          </View>
         ) : (
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
             <View style={styles.headerCard}>
               <Text style={styles.routineTitle}>{routine.title}</Text>
+              <View style={styles.timerRow}>
+                <Text style={styles.timerText}>{formatElapsed(elapsedSeconds)}</Text>
+                {finishedAt && <Text style={styles.finishedLabel}>¡Terminada!</Text>}
+              </View>
               <View style={styles.headerMetaRow}>
-                <Text style={styles.headerMeta}>
-                  {routine.client_id ? 'Personalizada por tu entrenador' : 'Rutina genérica'}
-                </Text>
+                <Text style={styles.headerMeta}>Personalizada por tu entrenador</Text>
                 <Text style={styles.headerPercent}>{percent}%</Text>
               </View>
-              {routine.goal && <Text style={styles.goalText}>{routine.goal}</Text>}
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${percent}%` }]} />
               </View>
@@ -124,9 +178,9 @@ export default function ClientRoutineScreen() {
               <Pressable
                 style={[styles.finishButton, doneCount < total && styles.finishButtonDisabled]}
                 disabled={doneCount < total}
-                onPress={() => setDoneIds(new Set())}>
+                onPress={restartRoutine}>
                 <Text style={styles.finishButtonText}>
-                  {doneCount < total ? 'Termina todos los ejercicios' : 'Reiniciar rutina'}
+                  {doneCount < total ? 'Termina todos los ejercicios' : `Reiniciar rutina · ${formatElapsed(elapsedSeconds)}`}
                 </Text>
               </Pressable>
             )}
@@ -155,6 +209,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
+  startScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: Spacing.four,
+  },
+  exerciseCountText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    marginTop: Spacing.one,
+  },
+  startButton: {
+    backgroundColor: colors.danger,
+    borderRadius: Spacing.three,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
   list: {
     gap: Spacing.two,
     paddingBottom: Spacing.six,
@@ -172,6 +248,22 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 22,
     fontWeight: '700',
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.two,
+  },
+  timerText: {
+    color: colors.text,
+    fontSize: 34,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  finishedLabel: {
+    color: '#3DDC6B',
+    fontSize: 13,
+    fontWeight: '800',
   },
   headerMetaRow: {
     flexDirection: 'row',

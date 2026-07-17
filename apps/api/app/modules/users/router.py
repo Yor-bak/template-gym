@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user, require_role
+from app.auth.dependencies import AuthzService, get_authz, get_current_user, require_role
 from app.core.database import get_db
 from app.modules.users import service as users_service
-from app.modules.users.models import Role, User
+from app.modules.users.models import ADMIN_ROLES, Role, User
 from app.modules.users.schemas import UserCreate, UserRead
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -14,14 +14,14 @@ router = APIRouter(prefix="/users", tags=["users"])
     "",
     response_model=UserRead,
     status_code=201,
-    dependencies=[Depends(require_role(Role.ADMIN, Role.PLATFORM_ADMIN))],
+    dependencies=[Depends(require_role(*ADMIN_ROLES, Role.PLATFORM_ADMIN))],
 )
 async def create_user(
     payload: UserCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    authz: AuthzService = Depends(get_authz),
 ) -> UserRead:
-    user = await users_service.create_staff_user(db, payload, created_by=current_user)
+    user = await users_service.create_staff_user(db, payload, authz=authz)
     return UserRead.model_validate(user)
 
 

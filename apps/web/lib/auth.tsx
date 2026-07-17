@@ -2,7 +2,8 @@
 import type { Session } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-import { isDemoMode } from './data/config';
+import { api, ApiError, getToken, onUnauthorized, setToken } from './api/client';
+import { isApiMode, isDemoMode } from './data/config';
 import { DEMO_AUTH_USERS } from './data/mock/authUsers';
 import { supabase } from './supabase';
 
@@ -156,7 +157,84 @@ function MockAuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthCtx.Provider value={{ user, isLoading, login, logout }}>{children}</AuthCtx.Provider>;
 }
 
+// ----------------------------------------------------------------------------
+// Modo API real: login contra apps/api (POST /auth/login). El backend usa
+// roles más finos que el dashboard (gym_admin/gym_admin_secondary), que aquí
+// se colapsan a 'admin' — mismo tratamiento que ADMIN_ROLES en el backend
+// (ver apps/api/app/modules/users/models.py). trainer/client se rechazan
+// igual que en los otros dos modos: son roles de la app móvil, no del panel.
+// ----------------------------------------------------------------------------
+interface ApiUserPublic {
+  id: string;
+  role: string;
+  gym_id: string | null;
+  full_name: string;
+  email: string;
+}
+
+function mapApiRole(role: string): StaffRole | null {
+  if (role === 'gym_admin' || role === 'gym_admin_secondary') return 'admin';
+  if (role === 'receptionist' || role === 'platform_admin') return role;
+  return null;
+}
+
+function mapApiUser(u: ApiUserPublic): AuthUser | null {
+  const role = mapApiRole(u.role);
+  if (!role) return null;
+  const { firstName, lastName } = splitName(u.full_name);
+  return { id: u.id, gymId: u.gym_id, firstName, lastName, email: u.email, role };
+}
+
+function ApiAuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const clearSession = () => {
+    setToken(null);
+    setUser(null);
+  };
+
+  useEffect(() => {
+    onUnauthorized(clearSession);
+    return () => onUnauthorized(null);
+  }, []);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    // Revalida contra /users/me en vez de confiar en un usuario cacheado —
+    // si la cuenta se desactivó o el token expiró, se descubre aquí.
+    api.get<ApiUserPublic>('/users/me')
+      .then((u) => setUser(mapApiUser(u)))
+      .catch(() => clearSession())
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const login = async (email: string, password: string): Promise<{ error: string | null }> => {
+    try {
+      const res = await api.post<{ access_token: string; user: ApiUserPublic }>('/auth/login', { email, password });
+      const mapped = mapApiUser(res.user);
+      if (!mapped) {
+        return { error: 'Esta cuenta no tiene acceso al panel de administración.' };
+      }
+      setToken(res.access_token);
+      setUser(mapped);
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof ApiError ? err.message : 'No se pudo iniciar sesión.' };
+    }
+  };
+
+  const logout = () => clearSession();
+
+  return <AuthCtx.Provider value={{ user, isLoading, login, logout }}>{children}</AuthCtx.Provider>;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  if (isApiMode()) return <ApiAuthProvider>{children}</ApiAuthProvider>;
   return isDemoMode() ? (
     <MockAuthProvider>{children}</MockAuthProvider>
   ) : (

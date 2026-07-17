@@ -9,7 +9,7 @@ from tests.conftest import make_gym, make_user
 @pytest.mark.asyncio
 async def test_login_success(client: AsyncClient, db_session: AsyncSession):
     gym = await make_gym(db_session)
-    user, password = await make_user(db_session, role=Role.ADMIN, gym_id=gym.id, email="admin@test.com")
+    user, password = await make_user(db_session, role=Role.GYM_ADMIN, gym_id=gym.id, email="admin@test.com")
     await db_session.commit()
 
     resp = await client.post("/auth/login", json={"email": "admin@test.com", "password": password})
@@ -17,13 +17,13 @@ async def test_login_success(client: AsyncClient, db_session: AsyncSession):
     assert resp.status_code == 200
     body = resp.json()
     assert body["access_token"]
-    assert body["user"]["role"] == "admin"
+    assert body["user"]["role"] == "gym_admin"
 
 
 @pytest.mark.asyncio
 async def test_login_wrong_password(client: AsyncClient, db_session: AsyncSession):
     gym = await make_gym(db_session)
-    await make_user(db_session, role=Role.ADMIN, gym_id=gym.id, email="admin2@test.com")
+    await make_user(db_session, role=Role.GYM_ADMIN, gym_id=gym.id, email="admin2@test.com")
     await db_session.commit()
 
     resp = await client.post("/auth/login", json={"email": "admin2@test.com", "password": "wrong"})
@@ -35,7 +35,7 @@ async def test_login_wrong_password(client: AsyncClient, db_session: AsyncSessio
 async def test_login_inactive_user(client: AsyncClient, db_session: AsyncSession):
     gym = await make_gym(db_session)
     user, password = await make_user(
-        db_session, role=Role.ADMIN, gym_id=gym.id, email="inactive@test.com", active=False
+        db_session, role=Role.GYM_ADMIN, gym_id=gym.id, email="inactive@test.com", active=False
     )
     await db_session.commit()
 

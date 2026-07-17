@@ -9,7 +9,7 @@ from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_token
 from app.modules.members.models import Member
 from app.modules.users import repository as users_repo
-from app.modules.users.models import STAFF_ROLES, Role, User
+from app.modules.users.models import ADMIN_ROLES, STAFF_ROLES, Role, User
 
 # tokenUrl es solo informativo para los docs de /docs; el login real vive en
 # app/modules/... /router.py (POST /auth/login) montado en main.py.
@@ -77,7 +77,7 @@ class AuthzService:
             raise ForbiddenError()
 
     def assert_can_write_member(self) -> None:
-        if self.user.role not in (Role.ADMIN, Role.RECEPTIONIST):
+        if self.user.role not in (*ADMIN_ROLES, Role.RECEPTIONIST):
             raise ForbiddenError()
 
 
