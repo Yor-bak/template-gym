@@ -1,11 +1,12 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import EmailStr
 
+from app.core.camel_model import CamelModel
 from app.modules.users.models import Role
 
 
-class UserCreate(BaseModel):
+class UserCreate(CamelModel):
     email: EmailStr
     password: str
     full_name: str
@@ -14,9 +15,7 @@ class UserCreate(BaseModel):
     phone: str | None = None
 
 
-class UserRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class UserRead(CamelModel):
     id: uuid.UUID
     email: EmailStr
     full_name: str

@@ -1,18 +1,17 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import EmailStr
 
+from app.core.camel_model import CamelModel
 from app.modules.users.models import Role
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(CamelModel):
     email: EmailStr
     password: str
 
 
-class UserPublic(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class UserPublic(CamelModel):
     id: uuid.UUID
     role: Role
     gym_id: uuid.UUID | None
@@ -20,7 +19,7 @@ class UserPublic(BaseModel):
     email: EmailStr
 
 
-class TokenResponse(BaseModel):
+class TokenResponse(CamelModel):
     access_token: str
     token_type: str = "bearer"
     user: UserPublic

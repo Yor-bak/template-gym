@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from app.core.camel_model import CamelModel
 
 
-class GymCreate(BaseModel):
+class GymCreate(CamelModel):
     name: str
     slug: str
     member_prefix: str
@@ -15,9 +15,7 @@ class GymCreate(BaseModel):
     currency: str = "MXN"
 
 
-class GymRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class GymRead(CamelModel):
     id: uuid.UUID
     name: str
     slug: str

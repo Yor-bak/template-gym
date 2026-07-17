@@ -2,13 +2,15 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.core.camel_model import CamelModel
 
 InventoryArea = Literal["cardio", "fuerza", "peso_libre", "tienda"]
 InventoryStatus = Literal["operating", "maintenance", "out_of_service"]
 
 
-class InventoryItemCreate(BaseModel):
+class InventoryItemCreate(CamelModel):
     area: InventoryArea
     name: str
     sku: str | None = None
@@ -19,9 +21,7 @@ class InventoryItemCreate(BaseModel):
     status: InventoryStatus = "operating"
 
 
-class InventoryItemRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class InventoryItemRead(CamelModel):
     id: uuid.UUID
     gym_id: uuid.UUID
     area: str
