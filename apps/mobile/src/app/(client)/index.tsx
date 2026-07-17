@@ -44,7 +44,7 @@ export default function ClientHomeScreen() {
     data: accessCode,
     isLoading: loadingCode,
     dataUpdatedAt,
-  } = useRotatingAccessCode(member?.id, isActive);
+  } = useRotatingAccessCode(member?.id, 'client', isActive);
 
   const [secondsLeft, setSecondsLeft] = useState(ACCESS_CODE_ROTATION_SECONDS);
 
