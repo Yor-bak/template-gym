@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -82,7 +83,7 @@ export default function ScanClientScreen() {
       <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>✕</Text>
+            <Ionicons name="close" size={18} color={colors.text} />
           </Pressable>
           <Text style={styles.title}>Escanear cliente</Text>
           <View style={styles.closeButton} />
@@ -147,11 +148,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  closeButtonText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
-  },
   title: {
     color: colors.text,
     fontSize: 17,
@@ -172,7 +168,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 32,
     height: 32,
-    borderColor: colors.danger,
+    borderColor: colors.accent,
   },
   cornerTL: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 8 },
   cornerTR: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 8 },

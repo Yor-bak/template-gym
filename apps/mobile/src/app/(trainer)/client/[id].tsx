@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -11,7 +12,8 @@ import { useClientRoutine, useMember } from '@/hooks/use-gym-data';
 import type { CatalogExercise } from '@/lib/exercise-catalog';
 import { mockDb } from '@/lib/mock-db';
 
-// Misma identidad visual oscura que el resto de la vista de entrenador.
+// Misma identidad visual oscura que el resto de la vista de entrenador —
+// acento azul en vez del rojo del cliente.
 const colors = Colors.dark;
 
 type EditableExercise = {
@@ -121,7 +123,8 @@ export default function ClientRoutineEditorScreen() {
       <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
         <View style={styles.navRow}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton}>
-            <Text style={styles.backButtonText}>‹ Clientes</Text>
+            <Ionicons name="chevron-back" size={18} color={colors.accent} />
+            <Text style={styles.backButtonText}>Clientes</Text>
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -139,54 +142,75 @@ export default function ClientRoutineEditorScreen() {
             </View>
           )}
 
-          <Field label="Título de la rutina">
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Ej. Fuerza tren superior"
-              placeholderTextColor={colors.textSecondary}
-            />
-          </Field>
-          <Field label="Objetivo">
-            <TextInput
-              style={styles.input}
-              value={goal}
-              onChangeText={setGoal}
-              placeholder="Ej. ganancia_muscular, perdida_grasa"
-              placeholderTextColor={colors.textSecondary}
-            />
-          </Field>
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>Detalles</Text>
+            <Field label="Título de la rutina">
+              <TextInput
+                style={styles.input}
+                value={title}
+                onChangeText={setTitle}
+                placeholder="Ej. Fuerza tren superior"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </Field>
+            <Field label="Objetivo">
+              <TextInput
+                style={styles.input}
+                value={goal}
+                onChangeText={setGoal}
+                placeholder="Ej. ganancia_muscular, perdida_grasa"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </Field>
+          </View>
 
-          <Text style={styles.sectionLabel}>Ejercicios</Text>
-
-          {exercises.map((exercise, index) => (
-            <View key={exercise.id ?? `new-${index}`} style={styles.exerciseCard}>
-              <View style={styles.exerciseCardHeader}>
-                <View style={styles.exerciseNameRow}>
-                  <Text style={styles.exerciseName}>{exercise.name}</Text>
-                  {exercise.catalogId && (
-                    <View style={styles.catalogBadge}>
-                      <Text style={styles.catalogBadgeText}>Del catálogo</Text>
-                    </View>
-                  )}
-                </View>
-                <Pressable onPress={() => removeExercise(index)} hitSlop={8}>
-                  <Text style={styles.removeText}>Quitar</Text>
-                </Pressable>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionLabel}>Ejercicios</Text>
+            {exercises.length > 0 && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{exercises.length}</Text>
               </View>
-              <Text style={styles.exerciseMeta}>
-                {exercise.sets} series × {exercise.reps} reps
-                {exercise.rest_seconds ? ` · descanso ${exercise.rest_seconds}s` : ''}
-              </Text>
-              {exercise.notes ? <Text style={styles.exerciseNotes}>{exercise.notes}</Text> : null}
-            </View>
-          ))}
+            )}
+          </View>
 
-          <View style={styles.newExerciseCard}>
-            <Text style={styles.newExerciseLabel}>Agregar ejercicio</Text>
-            <Pressable style={styles.secondaryButton} onPress={() => setPickerVisible(true)}>
-              <Text style={styles.secondaryButtonText}>Elegir del catálogo</Text>
+          {exercises.length === 0 ? (
+            <View style={styles.emptyExercises}>
+              <Ionicons name="barbell-outline" size={22} color={colors.textSecondary} />
+              <Text style={styles.emptyExercisesText}>Todavía no agregas ejercicios a esta rutina.</Text>
+            </View>
+          ) : (
+            exercises.map((exercise, index) => (
+              <View key={exercise.id ?? `new-${index}`} style={styles.exerciseCard}>
+                <View style={styles.exerciseCardHeader}>
+                  <View style={styles.exerciseNameRow}>
+                    <Text style={styles.exerciseName}>{exercise.name}</Text>
+                    {exercise.catalogId && (
+                      <View style={styles.catalogBadge}>
+                        <Ionicons name="checkmark-circle" size={12} color="#3DDC6B" />
+                        <Text style={styles.catalogBadgeText}>Del catálogo</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Pressable onPress={() => removeExercise(index)} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  </Pressable>
+                </View>
+                <Text style={styles.exerciseMeta}>
+                  {exercise.sets} series × {exercise.reps} reps
+                  {exercise.rest_seconds ? ` · descanso ${exercise.rest_seconds}s` : ''}
+                </Text>
+                {exercise.notes ? <Text style={styles.exerciseNotes}>{exercise.notes}</Text> : null}
+              </View>
+            ))
+          )}
+
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>Agregar ejercicio</Text>
+            <Pressable
+              style={({ pressed }) => [styles.catalogButton, pressed && styles.catalogButtonPressed]}
+              onPress={() => setPickerVisible(true)}>
+              <Ionicons name="search-outline" size={16} color={colors.text} />
+              <Text style={styles.catalogButtonText}>Elegir del catálogo</Text>
             </Pressable>
             <Field label="Nombre">
               <TextInput
@@ -244,6 +268,7 @@ export default function ClientRoutineEditorScreen() {
               style={[styles.secondaryButton, !newExercise.name.trim() && styles.buttonDisabled]}
               disabled={!newExercise.name.trim()}
               onPress={addExercise}>
+              <Ionicons name="add" size={18} color={colors.text} />
               <Text style={styles.secondaryButtonText}>Agregar ejercicio</Text>
             </Pressable>
           </View>
@@ -252,7 +277,14 @@ export default function ClientRoutineEditorScreen() {
             style={[styles.primaryButton, (!title.trim() || saving) && styles.buttonDisabled]}
             disabled={!title.trim() || saving}
             onPress={handleSave}>
-            {saving ? <ActivityIndicator color={colors.text} /> : <Text style={styles.primaryButtonText}>Guardar rutina</Text>}
+            {saving ? (
+              <ActivityIndicator color={colors.text} />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={18} color={colors.text} />
+                <Text style={styles.primaryButtonText}>Guardar rutina</Text>
+              </>
+            )}
           </Pressable>
         </ScrollView>
       </SafeAreaView>
@@ -288,6 +320,8 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.two,
   },
   backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     alignSelf: 'flex-start',
   },
   backButtonText: {
@@ -331,6 +365,14 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
   },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: Spacing.four,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: Spacing.four,
+    gap: Spacing.two,
+  },
   field: {
     gap: Spacing.one,
   },
@@ -349,13 +391,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     fontSize: 15,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
   sectionLabel: {
     color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginTop: Spacing.two,
+  },
+  countBadge: {
+    backgroundColor: colors.accentSoft,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  countBadgeText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  emptyExercises: {
+    backgroundColor: colors.surface,
+    borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    padding: Spacing.four,
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  emptyExercisesText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    textAlign: 'center',
   },
   exerciseCard: {
     backgroundColor: colors.surface,
@@ -377,6 +453,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   catalogBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     backgroundColor: '#1D3B24',
     paddingHorizontal: Spacing.one,
     paddingVertical: 2,
@@ -392,11 +471,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  removeText: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: '600',
-  },
   exerciseMeta: {
     color: colors.textSecondary,
     fontSize: 13,
@@ -406,17 +480,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
   },
-  newExerciseCard: {
-    backgroundColor: colors.surface,
+  catalogButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
+    height: 44,
     borderRadius: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: Spacing.three,
-    gap: Spacing.two,
+    backgroundColor: colors.accent,
   },
-  newExerciseLabel: {
-    color: colors.textSecondary,
-    fontSize: 13,
+  catalogButtonPressed: {
+    opacity: 0.85,
+  },
+  catalogButtonText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
   },
   row: {
     flexDirection: 'row',
@@ -426,11 +505,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
     height: 52,
     borderRadius: Spacing.three,
     backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   primaryButtonText: {
     color: colors.text,
@@ -438,13 +519,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
     height: 48,
     borderRadius: Spacing.three,
     backgroundColor: colors.backgroundElement,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   secondaryButtonText: {
     color: colors.text,

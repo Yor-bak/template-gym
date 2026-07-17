@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { mockDb } from '@/lib/mock-db';
-import type { AccessCode, Member, Profile, Routine, RoutineExercise } from '@/types/database';
+import type { AccessCode, Member, Profile, Routine, RoutineExercise, WorkoutLog } from '@/types/database';
 
 export type RoutineWithExercises = Routine & { routine_exercises: RoutineExercise[] };
 
@@ -54,12 +54,44 @@ export function useMyTrainer(memberId?: string) {
   });
 }
 
-/** Rutina personalizada que el propio entrenador del cliente le asignó — ya no hay fallback a una rutina genérica sin dueño. */
+/** Rutina personalizada que el propio entrenador del cliente le asignó. */
 export function useMyRoutine(memberId?: string) {
   return useQuery({
     queryKey: ['my-routine', memberId],
     enabled: !!memberId,
     queryFn: async (): Promise<RoutineWithExercises | null> => mockDb.findPersonalizedRoutine(memberId as string),
+  });
+}
+
+/** Las rutinas genéricas por grupo muscular — solo se muestran cuando el
+ * cliente todavía no tiene rutina personalizada de un entrenador. */
+export function useGenericRoutines() {
+  return useQuery({
+    queryKey: ['generic-routines'],
+    queryFn: async (): Promise<RoutineWithExercises[]> => mockDb.findGenericRoutines(),
+  });
+}
+
+/** Historial de rutinas completadas por el cliente, para el calendario. */
+export function useWorkoutHistory(memberId?: string) {
+  return useQuery({
+    queryKey: ['workout-history', memberId],
+    enabled: !!memberId,
+    queryFn: async (): Promise<WorkoutLog[]> => mockDb.findWorkoutHistory(memberId as string),
+  });
+}
+
+/** Marca la rutina del día como completada — alimenta el calendario. */
+export function useLogWorkoutCompletion(memberId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ routineId, routineTitle }: { routineId: string; routineTitle: string }) => {
+      if (!memberId) throw new Error('Falta el id del cliente.');
+      return mockDb.logWorkoutCompletion(memberId, routineId, routineTitle);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workout-history', memberId] });
+    },
   });
 }
 
