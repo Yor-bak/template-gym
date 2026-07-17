@@ -1,0 +1,38 @@
+# Build de producción del frontend (apps/web) dentro del monorepo npm
+# workspaces de template-gym. El contexto de build es la raíz del repo
+# (ver docker-compose.prod.yml: context: ../..), no esta carpeta — "npm ci"
+# necesita el lockfile raíz y los package.json de todos los workspaces para
+# no romper la integridad del lockfile.
+
+FROM node:20-slim AS deps
+WORKDIR /repo
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY apps/mobile/package.json apps/mobile/package.json
+RUN npm ci
+
+FROM node:20-slim AS builder
+WORKDIR /repo
+COPY --from=deps /repo/node_modules ./node_modules
+COPY . .
+
+# NEXT_PUBLIC_* se incrusta en el bundle del cliente en build time — tiene
+# que estar presente aquí, cambiarlo luego en runtime no tiene efecto.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+RUN npm run build --workspace apps/web
+
+FROM node:20-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# El output "standalone" en un monorepo conserva la ruta apps/web relativa
+# a la raíz trazada (outputFileTracingRoot en next.config.ts) — de ahí
+# apps/web/server.js en vez de server.js a secas.
+COPY --from=builder /repo/apps/web/public ./apps/web/public
+COPY --from=builder /repo/apps/web/.next/standalone ./
+COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
+
+EXPOSE 3000
+CMD ["node", "apps/web/server.js"]
