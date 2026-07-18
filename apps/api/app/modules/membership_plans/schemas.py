@@ -1,12 +1,14 @@
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.core.camel_model import CamelModel
 
 DurationUnit = Literal["days", "weeks", "months", "years"]
 
 
-class MembershipPlanCreate(BaseModel):
+class MembershipPlanCreate(CamelModel):
     name: str
     # CRIT-03 (DECISION_LOG_GYM.md, Bloque 3, decisión 6): rango válido
     # declarado en el propio schema, nunca un `if` disperso en el service.
@@ -17,9 +19,7 @@ class MembershipPlanCreate(BaseModel):
     description: str | None = None
 
 
-class MembershipPlanRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class MembershipPlanRead(CamelModel):
     id: uuid.UUID
     gym_id: uuid.UUID
     name: str

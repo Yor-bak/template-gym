@@ -1,10 +1,20 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MiniCalendar } from '@/components/routine/mini-calendar';
 import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
-import { useMyMember, useMyRoutine } from '@/hooks/use-gym-data';
+import {
+  useGenericRoutines,
+  useLogWorkoutCompletion,
+  useMyMember,
+  useMyRoutine,
+  useWorkoutHistory,
+  type RoutineWithExercises,
+} from '@/hooks/use-gym-data';
+import { CATEGORY_LABEL_ES, getExerciseById } from '@/lib/exercise-catalog';
 
 // Misma identidad visual oscura que la pantalla de Acceso.
 const colors = Colors.dark;
@@ -15,24 +25,55 @@ function formatElapsed(totalSeconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+type IoniconName = keyof typeof Ionicons.glyphMap;
+
+const MUSCLE_GROUP_ICON: Record<string, IoniconName> = {
+  legs: 'walk-outline',
+  back: 'body-outline',
+  chest: 'fitness-outline',
+  shoulders: 'barbell-outline',
+  arms: 'barbell-outline',
+  core: 'flame-outline',
+};
+
 export default function ClientRoutineScreen() {
   const { profile } = useAuth();
   const { data: member } = useMyMember(profile?.id);
   const { data: routine, isLoading } = useMyRoutine(member?.id);
+  const { data: genericRoutines } = useGenericRoutines();
+  const { data: history } = useWorkoutHistory(member?.id);
+  const logCompletion = useLogWorkoutCompletion(member?.id);
+
+  // Sin entrenador asignado todavía: el cliente elige una rutina genérica
+  // por grupo muscular como punto de partida (ver mockDb.findGenericRoutines).
+  const [selectedGenericId, setSelectedGenericId] = useState<string | null>(null);
+  const activeRoutine: RoutineWithExercises | null =
+    routine ?? genericRoutines?.find((r) => r.id === selectedGenericId) ?? null;
 
   // Progreso y tiempo de la sesión: solo viven en esta pantalla mientras está
   // abierta, no se guardan en el servidor (no hay todavía un registro de sesiones).
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [finishedAt, setFinishedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
     setDoneIds(new Set());
+    setExpandedId(null);
     setStartedAt(null);
     setFinishedAt(null);
     setElapsedSeconds(0);
-  }, [routine?.id]);
+  }, [activeRoutine?.id]);
+
+  // Registra la rutina como completada la primera vez que se marca el
+  // último ejercicio — alimenta el calendario de arriba.
+  useEffect(() => {
+    if (finishedAt && activeRoutine && member?.id) {
+      logCompletion.mutate({ routineId: activeRoutine.id, routineTitle: activeRoutine.title });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishedAt]);
 
   // El temporizador corre mientras la rutina está iniciada y no se ha
   // terminado; se congela en cuanto se marcan todos los ejercicios.
@@ -44,12 +85,17 @@ export default function ClientRoutineScreen() {
     return () => clearInterval(id);
   }, [startedAt, finishedAt]);
 
-  const sortedExercises = routine ? [...routine.routine_exercises].sort((a, b) => a.order_index - b.order_index) : [];
+  const sortedExercises = activeRoutine
+    ? [...activeRoutine.routine_exercises].sort((a, b) => a.order_index - b.order_index)
+    : [];
   const total = sortedExercises.length;
   const doneCount = sortedExercises.filter((e) => doneIds.has(e.id)).length;
   const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
   const firstPendingId = sortedExercises.find((e) => !doneIds.has(e.id))?.id;
   const started = startedAt !== null;
+
+  const markedDates = new Set((history ?? []).map((h) => h.completed_date));
+  const labelsByDate = new Map((history ?? []).map((h) => [h.completed_date, h.routine_title]));
 
   function toggleDone(id: string) {
     setDoneIds((prev) => {
@@ -83,16 +129,48 @@ export default function ClientRoutineScreen() {
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         {isLoading ? (
           <ActivityIndicator color={colors.danger} style={styles.loader} />
-        ) : !routine ? (
-          <Text style={styles.empty}>
-            Todavía no tienes una rutina asignada. En cuanto tu entrenador te asigne una, aparecerá aquí.
-          </Text>
+        ) : !activeRoutine ? (
+          <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+            <MiniCalendar markedDates={markedDates} labelsByDate={labelsByDate} />
+            <Text style={styles.empty}>
+              Todavía no tienes un entrenador asignado. Mientras tanto, elige una rutina para empezar:
+            </Text>
+            {genericRoutines?.map((r) => (
+              <Pressable
+                key={r.id}
+                style={styles.genericCard}
+                onPress={() => setSelectedGenericId(r.id)}>
+                <View style={styles.genericIconBadge}>
+                  <Ionicons
+                    name={MUSCLE_GROUP_ICON[r.muscle_group ?? ''] ?? 'barbell-outline'}
+                    size={20}
+                    color={colors.danger}
+                  />
+                </View>
+                <View style={styles.genericInfo}>
+                  <Text style={styles.genericTitle}>{r.title}</Text>
+                  <Text style={styles.genericMeta}>
+                    {r.routine_exercises.length} ejercicio{r.routine_exercises.length === 1 ? '' : 's'}
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         ) : !started ? (
-          <View style={styles.startScreen}>
+          <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+            <MiniCalendar markedDates={markedDates} labelsByDate={labelsByDate} />
             <View style={styles.headerCard}>
-              <Text style={styles.routineTitle}>{routine.title}</Text>
-              <Text style={styles.headerMeta}>Personalizada por tu entrenador</Text>
-              {routine.goal && <Text style={styles.goalText}>{routine.goal}</Text>}
+              {!routine && (
+                <Pressable onPress={() => setSelectedGenericId(null)} hitSlop={8}>
+                  <Text style={styles.backLink}>‹ Elegir otra rutina</Text>
+                </Pressable>
+              )}
+              <Text style={styles.routineTitle}>{activeRoutine.title}</Text>
+              <Text style={styles.headerMeta}>
+                {routine ? 'Personalizada por tu entrenador' : 'Recomendada para ti'}
+              </Text>
+              {activeRoutine.goal && <Text style={styles.goalText}>{activeRoutine.goal}</Text>}
               <Text style={styles.exerciseCountText}>
                 {total} ejercicio{total === 1 ? '' : 's'}
               </Text>
@@ -100,17 +178,19 @@ export default function ClientRoutineScreen() {
             <Pressable style={styles.startButton} onPress={startRoutine} disabled={total === 0}>
               <Text style={styles.startButtonText}>Iniciar rutina</Text>
             </Pressable>
-          </View>
+          </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
             <View style={styles.headerCard}>
-              <Text style={styles.routineTitle}>{routine.title}</Text>
+              <Text style={styles.routineTitle}>{activeRoutine.title}</Text>
               <View style={styles.timerRow}>
                 <Text style={styles.timerText}>{formatElapsed(elapsedSeconds)}</Text>
                 {finishedAt && <Text style={styles.finishedLabel}>¡Terminada!</Text>}
               </View>
               <View style={styles.headerMetaRow}>
-                <Text style={styles.headerMeta}>Personalizada por tu entrenador</Text>
+                <Text style={styles.headerMeta}>
+                  {routine ? 'Personalizada por tu entrenador' : 'Recomendada para ti'}
+                </Text>
                 <Text style={styles.headerPercent}>{percent}%</Text>
               </View>
               <View style={styles.progressTrack}>
@@ -123,28 +203,52 @@ export default function ClientRoutineScreen() {
             {sortedExercises.map((exercise) => {
               const done = doneIds.has(exercise.id);
               const isCurrent = exercise.id === firstPendingId;
+              const catalogEntry = exercise.catalog_id ? getExerciseById(exercise.catalog_id) : undefined;
+              const expanded = expandedId === exercise.id;
               return (
-                <Pressable
-                  key={exercise.id}
-                  onPress={() => toggleDone(exercise.id)}
-                  style={[styles.exerciseCard, isCurrent && styles.exerciseCardCurrent]}>
-                  <View style={[styles.checkCircle, done && styles.checkCircleDone]}>
-                    {done && <Text style={styles.checkMark}>✓</Text>}
-                  </View>
-                  <View style={styles.exerciseInfo}>
-                    <Text style={styles.exerciseName}>{exercise.name}</Text>
-                    <Text style={styles.exerciseMeta}>
-                      {exercise.sets} × {exercise.reps}
-                      {exercise.rest_seconds != null ? ` · descanso ${exercise.rest_seconds}s` : ''}
-                    </Text>
-                    {exercise.notes && <Text style={styles.exerciseNotes}>{exercise.notes}</Text>}
-                  </View>
-                  {isCurrent && !done && (
-                    <View style={styles.currentBadge}>
-                      <Text style={styles.currentBadgeText}>EN CURSO</Text>
+                <View key={exercise.id} style={[styles.exerciseCard, isCurrent && styles.exerciseCardCurrent]}>
+                  <Pressable style={styles.exerciseRow} onPress={() => toggleDone(exercise.id)}>
+                    <View style={[styles.checkCircle, done && styles.checkCircleDone]}>
+                      {done && <Text style={styles.checkMark}>✓</Text>}
+                    </View>
+                    <View style={styles.exerciseInfo}>
+                      <Text style={styles.exerciseName}>{exercise.name}</Text>
+                      <Text style={styles.exerciseMeta}>
+                        {exercise.sets} × {exercise.reps}
+                        {exercise.rest_seconds != null ? ` · descanso ${exercise.rest_seconds}s` : ''}
+                      </Text>
+                      {exercise.notes && <Text style={styles.exerciseNotes}>{exercise.notes}</Text>}
+                    </View>
+                    {isCurrent && !done && (
+                      <View style={styles.currentBadge}>
+                        <Text style={styles.currentBadgeText}>EN CURSO</Text>
+                      </View>
+                    )}
+                  </Pressable>
+
+                  {catalogEntry && (
+                    <View style={styles.instructionsSection}>
+                      <Pressable onPress={() => setExpandedId(expanded ? null : exercise.id)}>
+                        <Text style={styles.instructionsToggle}>
+                          {expanded ? 'Ocultar instrucciones ▲' : 'Ver instrucciones ▼'}
+                        </Text>
+                      </Pressable>
+                      {expanded && (
+                        <View style={styles.instructionsBody}>
+                          <Text style={styles.instructionsMuscle}>
+                            Trabaja: {CATEGORY_LABEL_ES[catalogEntry.category] ?? catalogEntry.category} ·{' '}
+                            {catalogEntry.target}
+                          </Text>
+                          {catalogEntry.steps.map((step, i) => (
+                            <Text key={i} style={styles.instructionsStep}>
+                              {i + 1}. {step}
+                            </Text>
+                          ))}
+                        </View>
+                      )}
                     </View>
                   )}
-                </Pressable>
+                </View>
               );
             })}
 
@@ -179,9 +283,43 @@ const styles = StyleSheet.create({
   },
   empty: {
     color: colors.textSecondary,
-    marginTop: Spacing.three,
     fontSize: 15,
     lineHeight: 22,
+  },
+  genericCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    backgroundColor: colors.surface,
+    borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: Spacing.three,
+  },
+  genericIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  genericInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  genericTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  genericMeta: {
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  chevron: {
+    color: colors.textSecondary,
+    fontSize: 20,
   },
   startScreen: {
     flex: 1,
@@ -192,6 +330,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 13,
     marginTop: Spacing.one,
+  },
+  backLink: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: Spacing.one,
   },
   startButton: {
     backgroundColor: colors.danger,
@@ -279,9 +423,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.one,
   },
   exerciseCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
     backgroundColor: colors.surface,
     borderRadius: Spacing.three,
     borderWidth: StyleSheet.hairlineWidth,
@@ -291,6 +432,38 @@ const styles = StyleSheet.create({
   exerciseCardCurrent: {
     borderColor: colors.danger,
     borderWidth: 1.5,
+  },
+  exerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  instructionsSection: {
+    marginTop: Spacing.two,
+    paddingTop: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  instructionsToggle: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  instructionsBody: {
+    marginTop: Spacing.two,
+    gap: 6,
+  },
+  instructionsMuscle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+    marginBottom: 2,
+  },
+  instructionsStep: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
   },
   checkCircle: {
     width: 28,

@@ -1,4 +1,5 @@
-# Stack de la API de Template-GYM, self-hosted en la Raspberry Pi.
+# Stack de la API de Template-GYM, self-hosted en el servidor Linux del
+# equipo (Docker + Docker Compose, cualquier host — no depende de la Pi).
 # Reemplaza el stack de Supabase (7 contenedores) por solo 2: Postgres y la
 # API en FastAPI — ya no hace falta Kong/GoTrue/PostgREST/Storage/Meta/Studio
 # porque FastAPI hace de gateway, autenticación y capa de datos a la vez.
@@ -29,9 +30,9 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      # Solo accesible desde el propio Pi — la API es la única que debe hablarle.
-      # DB_PORT configurable porque el Pi comparte host con otros proyectos del
-      # equipo que también usan Postgres en el 5432 por defecto.
+      # Solo accesible desde el propio host — la API es la única que debe hablarle.
+      # DB_PORT configurable porque el servidor puede compartir host con otros
+      # proyectos del equipo que también usan Postgres en el 5432 por defecto.
       - "127.0.0.1:${DB_PORT:-5432}:5432"
 
   api:
@@ -45,8 +46,11 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRY_MIN: ${JWT_EXPIRY_MIN:-1440}
+      QR_SECRET: ${QR_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS}
       ENV: production
+      ADMIN_PANEL_BASE_URL: ${ADMIN_PANEL_BASE_URL:-https://api-admin.j2ec-nodes.com}
+      ADMIN_PANEL_SERVICE_KEY: ${ADMIN_PANEL_SERVICE_KEY:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

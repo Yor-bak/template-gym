@@ -1,10 +1,10 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from app.core.camel_model import CamelModel
 
 
-class MemberCreate(BaseModel):
+class MemberCreate(CamelModel):
     first_name: str
     last_name: str
     phone: str
@@ -16,9 +16,7 @@ class MemberCreate(BaseModel):
     notes: str | None = None
 
 
-class MemberRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class MemberRead(CamelModel):
     id: uuid.UUID
     gym_id: uuid.UUID
     user_id: uuid.UUID | None

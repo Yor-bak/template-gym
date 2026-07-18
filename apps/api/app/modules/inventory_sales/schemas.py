@@ -2,17 +2,19 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.core.camel_model import CamelModel
 
 PaymentMethod = Literal["cash", "card", "transfer", "other"]
 
 
-class InventorySaleLineCreate(BaseModel):
+class InventorySaleLineCreate(CamelModel):
     item_id: uuid.UUID
     quantity: int = Field(gt=0)
 
 
-class InventorySaleCreate(BaseModel):
+class InventorySaleCreate(CamelModel):
     # Sin gym_id en el body a propósito — no hay ningún caso legítimo de que
     # el staff de un gimnasio registre una venta en otro (a diferencia de
     # /users, aquí no existe la excepción de platform_admin). Es
@@ -23,9 +25,7 @@ class InventorySaleCreate(BaseModel):
     notes: str | None = None
 
 
-class InventorySaleItemRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class InventorySaleItemRead(CamelModel):
     id: uuid.UUID
     item_id: uuid.UUID
     quantity: int
@@ -33,9 +33,7 @@ class InventorySaleItemRead(BaseModel):
     subtotal: float
 
 
-class InventorySaleRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class InventorySaleRead(CamelModel):
     id: uuid.UUID
     gym_id: uuid.UUID
     member_id: uuid.UUID | None

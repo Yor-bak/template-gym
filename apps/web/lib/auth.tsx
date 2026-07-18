@@ -187,14 +187,17 @@ function MockAuthProvider({ children }: { children: React.ReactNode }) {
 // (ver apps/api/app/modules/users/models.py). trainer/client se rechazan
 // igual que en los otros dos modos: son roles de la app móvil, no del panel.
 // ----------------------------------------------------------------------------
+// Contrato camelCase (CamelModel, apps/api/app/core/camel_model.py — "no
+// negociable" según REQUERIMIENTOS_BACKEND_GYM.md §6). Los atributos Python
+// del backend siguen en snake_case, pero el JSON que cruza la red no.
 interface ApiUserPublic {
   id: string;
   role: string;
-  gym_id: string | null;
-  full_name: string;
+  gymId: string | null;
+  fullName: string;
   phone: string;
   email: string | null;
-  must_change_password: boolean;
+  mustChangePassword: boolean;
 }
 
 function mapApiRole(role: string): StaffRole | null {
@@ -206,8 +209,8 @@ function mapApiRole(role: string): StaffRole | null {
 function mapApiUser(u: ApiUserPublic): AuthUser | null {
   const role = mapApiRole(u.role);
   if (!role) return null;
-  const { firstName, lastName } = splitName(u.full_name);
-  return { id: u.id, gymId: u.gym_id, firstName, lastName, email: u.email, role };
+  const { firstName, lastName } = splitName(u.fullName);
+  return { id: u.id, gymId: u.gymId, firstName, lastName, email: u.email, role };
 }
 
 function ApiAuthProvider({ children }: { children: React.ReactNode }) {
@@ -242,7 +245,7 @@ function ApiAuthProvider({ children }: { children: React.ReactNode }) {
     api.get<ApiUserPublic>('/users/me')
       .then((u) => {
         setUser(mapApiUser(u));
-        setMustChangePassword(u.must_change_password);
+        setMustChangePassword(u.mustChangePassword);
       })
       .catch((err) => {
         // 403 aquí significa "token válido, pero must_change_password
@@ -259,9 +262,9 @@ function ApiAuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (phone: string, password: string): Promise<{ error: string | null }> => {
     try {
-      const res = await api.post<{ access_token: string; user: ApiUserPublic }>('/auth/login', { phone, password });
-      setToken(res.access_token);
-      if (res.user.must_change_password) {
+      const res = await api.post<{ accessToken: string; user: ApiUserPublic }>('/auth/login', { phone, password });
+      setToken(res.accessToken);
+      if (res.user.mustChangePassword) {
         // No hay UserPublic completo utilizable aún si el rol no debiera
         // tener acceso al panel — pero en la práctica solo gym_admin sale
         // de este flujo (aprovisionamiento), así que sí mapea.
@@ -288,8 +291,8 @@ function ApiAuthProvider({ children }: { children: React.ReactNode }) {
   ): Promise<{ error: string | null }> => {
     try {
       const updated = await api.post<ApiUserPublic>('/auth/change-password', {
-        current_password: currentPassword,
-        new_password: newPassword,
+        currentPassword,
+        newPassword,
       });
       setMustChangePassword(false);
       const mapped = mapApiUser(updated);

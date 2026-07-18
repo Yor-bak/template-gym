@@ -19,7 +19,7 @@ async def _login(client: AsyncClient, email: str, password: str) -> str:
         "/auth/login", json={"phone": phone_from_email(email), "password": password}
     )
     assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    return resp.json()["accessToken"]
 
 
 async def _make_client_with_token(client: AsyncClient, db: AsyncSession, *, gym_id, email: str):

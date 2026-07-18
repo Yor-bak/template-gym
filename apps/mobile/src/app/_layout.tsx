@@ -12,7 +12,7 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function RootNavigator() {
-  const { session, profile, isLoading } = useAuth();
+  const { session, profile, mustChangePassword, isLoading } = useAuth();
 
   // Mientras carga la sesión inicial o el perfil, no renderizamos rutas todavía
   // (evita un parpadeo hacia (auth) antes de saber si hay sesión).
@@ -26,11 +26,17 @@ function RootNavigator() {
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
 
-      <Stack.Protected guard={!!session && role === 'client'}>
+      {/* Contraseña provisional de recepción: bloquea todo lo demás hasta
+          que el cliente/entrenador la cambie. */}
+      <Stack.Protected guard={!!session && mustChangePassword}>
+        <Stack.Screen name="change-password" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={!!session && !mustChangePassword && role === 'client'}>
         <Stack.Screen name="(client)" />
       </Stack.Protected>
 
-      <Stack.Protected guard={!!session && role === 'trainer'}>
+      <Stack.Protected guard={!!session && !mustChangePassword && role === 'trainer'}>
         <Stack.Screen name="(trainer)" />
       </Stack.Protected>
     </Stack>

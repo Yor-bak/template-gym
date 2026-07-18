@@ -18,7 +18,7 @@ async def test_login_success(client: AsyncClient, db_session: AsyncSession):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["access_token"]
+    assert body["accessToken"]
     assert body["user"]["role"] == "gym_admin"
     assert body["user"]["phone"] == "5512345678"
 
@@ -97,8 +97,8 @@ async def test_must_change_password_blocks_protected_endpoints(
         "/auth/login", json={"phone": "5512345682", "password": "123456"}
     )
     assert login_resp.status_code == 200
-    assert login_resp.json()["user"]["must_change_password"] is True
-    token = login_resp.json()["access_token"]
+    assert login_resp.json()["user"]["mustChangePassword"] is True
+    token = login_resp.json()["accessToken"]
     auth = {"Authorization": f"Bearer {token}"}
 
     # Un endpoint protegido normal (GET /members) debe rechazar mientras
@@ -118,7 +118,7 @@ async def test_must_change_password_blocks_protected_endpoints(
         headers=auth,
     )
     assert change_resp.status_code == 200, change_resp.text
-    assert change_resp.json()["must_change_password"] is False
+    assert change_resp.json()["mustChangePassword"] is False
 
     # Mismo token, ahora sí pasa (no hace falta re-loguear).
     members_resp_2 = await client.get("/members", headers=auth)
@@ -134,7 +134,7 @@ async def test_must_change_password_blocks_protected_endpoints(
         "/auth/login", json={"phone": "5512345682", "password": "NuevaSegura123"}
     )
     assert new_login.status_code == 200
-    assert new_login.json()["user"]["must_change_password"] is False
+    assert new_login.json()["user"]["mustChangePassword"] is False
 
 
 @pytest.mark.asyncio
@@ -155,7 +155,7 @@ async def test_change_password_requires_correct_current_password(
     login_resp = await client.post(
         "/auth/login", json={"phone": "5512345683", "password": "123456"}
     )
-    token = login_resp.json()["access_token"]
+    token = login_resp.json()["accessToken"]
 
     resp = await client.post(
         "/auth/change-password",

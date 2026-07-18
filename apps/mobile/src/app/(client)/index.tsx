@@ -173,17 +173,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
+  // Tamaño fijo a propósito (no '100%'/aspectRatio): en pantallas más grandes
+  // un marco basado en porcentaje del ancho crecía más que el QR de adentro
+  // y las esquinas rojas quedaban desfasadas del código. Con tamaño fijo el
+  // marco y el QR (size=200 + 24px de padding = 248) siempre coinciden.
   qrFrame: {
-    width: '100%',
-    aspectRatio: 1,
-    maxWidth: 280,
+    width: 248,
+    height: 248,
+    alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
   },
   qrInner: {
     backgroundColor: '#ffffff',
     borderRadius: Spacing.three,
-    padding: Spacing.four,
     width: '100%',
     height: '100%',
     alignItems: 'center',

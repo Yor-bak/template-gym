@@ -1,6 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,76 +16,64 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 
-// Login siempre en tema oscuro premium, igual que la vista de socio.
 const colors = Colors.dark;
 
-// Foto de fondo del login. Para usar la foto real de American Fitness,
-// reemplaza esta URL por un require('...') de un archivo local en
-// assets/images, p. ej. require('@/../assets/images/gym-hero.jpg').
-const HERO_IMAGE = 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1080&auto=format&fit=crop';
-
-export default function LoginScreen() {
-  const { signIn } = useAuth();
-  const [phone, setPhone] = useState('');
+// La recepción registra al cliente con una contraseña provisional. Esta
+// pantalla es obligatoria en el primer ingreso — no se puede saltar ni hay
+// forma de navegar fuera de ella hasta que la cambie (ver el guard en
+// app/_layout.tsx: mustChangePassword bloquea (client)/(trainer)).
+export default function ChangePasswordScreen() {
+  const { profile, changePassword, signOut } = useAuth();
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
     setError(null);
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
     setLoading(true);
-    const { error: signInError } = await signIn(phone.trim(), password);
+    const { error: changeError } = await changePassword(password);
     setLoading(false);
-    if (signInError) setError(signInError);
+    if (changeError) setError(changeError);
   }
 
-  const canSubmit = !!phone && !!password && !loading;
+  const canSubmit = password.length >= 6 && confirmPassword.length >= 6 && !loading;
 
   return (
     <View style={styles.container}>
-      {/* Foto de fondo + veladura oscura para legibilidad */}
-      <Image source={HERO_IMAGE} style={StyleSheet.absoluteFill} contentFit="cover" transition={400} />
-      <LinearGradient
-        colors={['rgba(5,7,12,0.55)', 'rgba(5,7,12,0.85)', colors.background]}
-        locations={[0, 0.55, 1]}
-        style={StyleSheet.absoluteFill}
-      />
-
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          <SafeAreaView edges={['top']} style={styles.brandBlock}>
-            <View style={styles.brandRow}>
-              <View style={styles.brandMark} />
-              <Text style={styles.brandWordmark}>AMERICAN FITNESS</Text>
+          <SafeAreaView edges={['top']} style={styles.heroBlock}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="shield-checkmark-outline" size={28} color={colors.danger} />
             </View>
-            <Text style={styles.heroTitle}>Entrena{'\n'}sin límites.</Text>
-            <Text style={styles.heroSubtitle}>Tu llave de acceso, rutinas y entrenador, en un solo lugar.</Text>
+            <Text style={styles.heroTitle}>Crea tu{'\n'}contraseña</Text>
+            <Text style={styles.heroSubtitle}>
+              {profile ? `¡Hola ${profile.full_name.split(' ')[0]}! ` : ''}
+              Por seguridad, cambia la contraseña provisional que te dio recepción antes de continuar.
+            </Text>
           </SafeAreaView>
 
           <View style={styles.form}>
-            <View style={styles.field}>
-              <Ionicons name="call-outline" size={20} color={colors.textSecondary} />
-              <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                placeholder="Número de teléfono"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.input}
-              />
-            </View>
-
             <View style={styles.field}>
               <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />
               <TextInput
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
-                placeholder="Contraseña"
+                placeholder="Nueva contraseña (mínimo 6 caracteres)"
                 placeholderTextColor={colors.textSecondary}
                 style={styles.input}
               />
@@ -98,6 +84,18 @@ export default function LoginScreen() {
                   color={colors.textSecondary}
                 />
               </Pressable>
+            </View>
+
+            <View style={styles.field}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />
+              <TextInput
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showPassword}
+                placeholder="Confirmar contraseña"
+                placeholderTextColor={colors.textSecondary}
+                style={styles.input}
+              />
             </View>
 
             {error && <Text style={styles.error}>{error}</Text>}
@@ -112,13 +110,13 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.buttonText}>ENTRAR</Text>
+                <Text style={styles.buttonText}>GUARDAR Y CONTINUAR</Text>
               )}
             </Pressable>
 
-            <Text style={styles.helperText}>
-              ¿Aún no tienes cuenta? Pídele a recepción que te registre.
-            </Text>
+            <Pressable onPress={signOut}>
+              <Text style={styles.helperText}>Cerrar sesión</Text>
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -136,45 +134,34 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flexGrow: 1,
-    justifyContent: 'space-between',
     paddingBottom: Spacing.five,
   },
-  brandBlock: {
+  heroBlock: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.five,
+    paddingBottom: Spacing.five,
     gap: Spacing.two,
   },
-  brandRow: {
-    flexDirection: 'row',
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.backgroundElement,
     alignItems: 'center',
-    gap: Spacing.two,
-  },
-  brandMark: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    backgroundColor: colors.danger,
-    transform: [{ rotate: '45deg' }],
-  },
-  brandWordmark: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '800',
-    fontStyle: 'italic',
-    letterSpacing: 0.5,
+    justifyContent: 'center',
+    marginBottom: Spacing.two,
   },
   heroTitle: {
     color: colors.text,
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: '800',
-    lineHeight: 44,
-    marginTop: Spacing.three,
+    lineHeight: 40,
   },
   heroSubtitle: {
     color: colors.silver,
     fontSize: 15,
     lineHeight: 22,
-    maxWidth: 300,
+    maxWidth: 320,
   },
   form: {
     paddingHorizontal: Spacing.four,
@@ -187,9 +174,9 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: Spacing.three,
     paddingHorizontal: Spacing.three,
-    backgroundColor: 'rgba(20,25,34,0.75)',
+    backgroundColor: colors.backgroundElement,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderColor: colors.border,
   },
   input: {
     flex: 1,
