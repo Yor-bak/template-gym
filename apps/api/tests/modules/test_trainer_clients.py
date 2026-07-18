@@ -52,8 +52,8 @@ async def test_trainer_links_client_by_scanning_qr(client: AsyncClient, db_sessi
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["trainer_id"] == str(trainer.id)
-    assert body["client_id"] == str(member.id)
+    assert body["trainerId"] == str(trainer.id)
+    assert body["clientId"] == str(member.id)
 
     # Verificación real contra la BD.
     result = await db_session.execute(select(TrainerClient).where(TrainerClient.client_id == member.id))

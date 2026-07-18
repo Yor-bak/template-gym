@@ -14,7 +14,7 @@ async def test_lookup_valid_code(client: AsyncClient, db_session: AsyncSession):
     resp = await client.get("/activation/lookup", params={"code": "DEMO1234"})
 
     assert resp.status_code == 200
-    assert resp.json() == {"first_name": "Daniela", "gym_name": "American Fitness"}
+    assert resp.json() == {"firstName": "Daniela", "gymName": "American Fitness"}
 
 
 @pytest.mark.asyncio
@@ -37,7 +37,7 @@ async def test_activate_account_success(client: AsyncClient, db_session: AsyncSe
     assert resp.status_code == 201
     body = resp.json()
     assert body["user"]["role"] == "client"
-    assert body["access_token"]
+    assert body["accessToken"]
 
 
 @pytest.mark.asyncio

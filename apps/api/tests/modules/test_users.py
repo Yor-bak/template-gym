@@ -185,11 +185,11 @@ async def test_admin_cannot_create_staff_in_another_gym_via_body(client: AsyncCl
     # gym_id del body y usa el del propio caller.
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["gym_id"] == str(gym_a.id), (
+    assert body["gymId"] == str(gym_a.id), (
         f"El servidor debía ignorar el gym_id del body y usar el del caller (gym A), "
-        f"pero el usuario quedó creado con gym_id={body['gym_id']!r} (se pidió {str(gym_b.id)!r})"
+        f"pero el usuario quedó creado con gym_id={body['gymId']!r} (se pidió {str(gym_b.id)!r})"
     )
-    assert body["gym_id"] != str(gym_b.id)
+    assert body["gymId"] != str(gym_b.id)
 
     # Confirmación contra la base de datos real, no solo contra la respuesta.
     result = await db_session.execute(select(User).where(User.email == "intruso@test.com"))
@@ -230,4 +230,4 @@ async def test_platform_admin_can_target_any_gym_explicitly(client: AsyncClient,
         headers=headers,
     )
     assert resp.status_code == 201, resp.text
-    assert resp.json()["gym_id"] == str(gym_b.id)
+    assert resp.json()["gymId"] == str(gym_b.id)

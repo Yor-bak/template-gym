@@ -70,4 +70,4 @@ async def test_create_plan_accepts_valid_payload(client: AsyncClient, db_session
     body = resp.json()
     assert body["price"] == 500
     assert body["duration"] == 1
-    assert body["tolerance_days"] == 0
+    assert body["toleranceDays"] == 0
