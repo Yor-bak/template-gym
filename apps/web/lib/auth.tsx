@@ -17,14 +17,19 @@ export interface AuthUser {
   gymId: string | null;
   firstName: string;
   lastName: string;
-  email: string;
+  email: string | null;
   role: StaffRole;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ error: string | null }>;
+  // true si el backend exige cambiar la contraseña antes de cualquier otra
+  // cosa (aprovisionamiento — ver apps/api/app/auth/dependencies.py). Solo
+  // aplica en modo API real; Supabase/demo siempre lo dejan en false.
+  mustChangePassword: boolean;
+  login: (identifier: string, password: string) => Promise<{ error: string | null }>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ error: string | null }>;
   logout: () => void;
 }
 
@@ -116,7 +121,17 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
     supabase!.auth.signOut();
   };
 
-  return <AuthCtx.Provider value={{ user, isLoading, login, logout }}>{children}</AuthCtx.Provider>;
+  // Cambio de contraseña obligatorio (must_change_password) es una
+  // funcionalidad exclusiva del modo API real — Supabase no lo implementa.
+  const changePassword = async (): Promise<{ error: string | null }> => (
+    { error: 'Cambio de contraseña no disponible en modo Supabase.' }
+  );
+
+  return (
+    <AuthCtx.Provider value={{ user, isLoading, mustChangePassword: false, login, changePassword, logout }}>
+      {children}
+    </AuthCtx.Provider>
+  );
 }
 
 // ----------------------------------------------------------------------------
@@ -140,7 +155,7 @@ function MockAuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string): Promise<{ error: string | null }> => {
-    const match = DEMO_AUTH_USERS.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+    const match = DEMO_AUTH_USERS.find((u) => (u.email ?? '').toLowerCase() === email.trim().toLowerCase());
     if (!match) {
       return { error: 'No existe un usuario demo con ese correo. Usa uno de los accesos rápidos.' };
     }
@@ -154,7 +169,15 @@ function MockAuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
-  return <AuthCtx.Provider value={{ user, isLoading, login, logout }}>{children}</AuthCtx.Provider>;
+  const changePassword = async (): Promise<{ error: string | null }> => (
+    { error: 'Cambio de contraseña no disponible en modo demo.' }
+  );
+
+  return (
+    <AuthCtx.Provider value={{ user, isLoading, mustChangePassword: false, login, changePassword, logout }}>
+      {children}
+    </AuthCtx.Provider>
+  );
 }
 
 // ----------------------------------------------------------------------------
@@ -169,7 +192,9 @@ interface ApiUserPublic {
   role: string;
   gym_id: string | null;
   full_name: string;
-  email: string;
+  phone: string;
+  email: string | null;
+  must_change_password: boolean;
 }
 
 function mapApiRole(role: string): StaffRole | null {
@@ -188,10 +213,17 @@ function mapApiUser(u: ApiUserPublic): AuthUser | null {
 function ApiAuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Separado de `user`: el backend bloquea GET /users/me con 403 mientras
+  // must_change_password sea true (ver app/auth/dependencies.py), así que
+  // no siempre hay un perfil completo disponible para poblar `user` — pero
+  // sí necesitamos saber que hay una sesión válida pendiente de cambio de
+  // contraseña, para no expulsar a /login por error en un refresh.
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   const clearSession = () => {
     setToken(null);
     setUser(null);
+    setMustChangePassword(false);
   };
 
   useEffect(() => {
@@ -208,29 +240,73 @@ function ApiAuthProvider({ children }: { children: React.ReactNode }) {
     // Revalida contra /users/me en vez de confiar en un usuario cacheado —
     // si la cuenta se desactivó o el token expiró, se descubre aquí.
     api.get<ApiUserPublic>('/users/me')
-      .then((u) => setUser(mapApiUser(u)))
-      .catch(() => clearSession())
+      .then((u) => {
+        setUser(mapApiUser(u));
+        setMustChangePassword(u.must_change_password);
+      })
+      .catch((err) => {
+        // 403 aquí significa "token válido, pero must_change_password
+        // bloquea /users/me" — no es una sesión inválida, no hay que
+        // cerrarla. El guard (AppShell) manda a /change-password con esto.
+        if (err instanceof ApiError && err.status === 403) {
+          setMustChangePassword(true);
+        } else {
+          clearSession();
+        }
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (email: string, password: string): Promise<{ error: string | null }> => {
+  const login = async (phone: string, password: string): Promise<{ error: string | null }> => {
     try {
-      const res = await api.post<{ access_token: string; user: ApiUserPublic }>('/auth/login', { email, password });
+      const res = await api.post<{ access_token: string; user: ApiUserPublic }>('/auth/login', { phone, password });
+      setToken(res.access_token);
+      if (res.user.must_change_password) {
+        // No hay UserPublic completo utilizable aún si el rol no debiera
+        // tener acceso al panel — pero en la práctica solo gym_admin sale
+        // de este flujo (aprovisionamiento), así que sí mapea.
+        setMustChangePassword(true);
+        setUser(null);
+        return { error: null };
+      }
       const mapped = mapApiUser(res.user);
       if (!mapped) {
+        setToken(null);
         return { error: 'Esta cuenta no tiene acceso al panel de administración.' };
       }
-      setToken(res.access_token);
       setUser(mapped);
+      setMustChangePassword(false);
       return { error: null };
     } catch (err) {
       return { error: err instanceof ApiError ? err.message : 'No se pudo iniciar sesión.' };
     }
   };
 
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ error: string | null }> => {
+    try {
+      const updated = await api.post<ApiUserPublic>('/auth/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      setMustChangePassword(false);
+      const mapped = mapApiUser(updated);
+      if (mapped) setUser(mapped);
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof ApiError ? err.message : 'No se pudo cambiar la contraseña.' };
+    }
+  };
+
   const logout = () => clearSession();
 
-  return <AuthCtx.Provider value={{ user, isLoading, login, logout }}>{children}</AuthCtx.Provider>;
+  return (
+    <AuthCtx.Provider value={{ user, isLoading, mustChangePassword, login, changePassword, logout }}>
+      {children}
+    </AuthCtx.Provider>
+  );
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

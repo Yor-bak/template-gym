@@ -16,9 +16,9 @@ from app.modules.users.models import ADMIN_ROLES, STAFF_ROLES, Role, User
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
-async def get_current_user(
-    token: str | None = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
+async def _authenticate(
+    token: str | None,
+    db: AsyncSession,
 ) -> User:
     if token is None:
         raise UnauthorizedError()
@@ -32,6 +32,36 @@ async def get_current_user(
     if user is None or not user.active:
         raise UnauthorizedError("Cuenta inválida o desactivada")
     return user
+
+
+async def get_current_user(
+    token: str | None = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Gate real de must_change_password (decisión 2026-07-17): usada por
+    TODO endpoint protegido (directo o vía require_role/get_authz, que
+    dependen de esta). Mientras must_change_password sea true, bloquea con
+    403 — el único punto de entrada que se salta este gate es
+    /auth/change-password, que depende de get_current_user_for_password_change
+    en su lugar. No basta con que el campo exista en el modelo: este es el
+    enforcement real (a diferencia de admin-panel-j2ec, donde el mismo campo
+    existe pero no bloquea nada)."""
+    user = await _authenticate(token, db)
+    if user.must_change_password:
+        raise ForbiddenError(
+            "Debes cambiar tu contraseña antes de continuar. Usa POST /auth/change-password."
+        )
+    return user
+
+
+async def get_current_user_for_password_change(
+    token: str | None = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Misma autenticación que get_current_user pero SIN el gate de
+    must_change_password — es la única dependencia autorizada a saltárselo,
+    y solo la usa POST /auth/change-password."""
+    return await _authenticate(token, db)
 
 
 def require_role(*roles: Role):

@@ -28,7 +28,7 @@ async def main() -> None:
 
     for item in result["provisioned"]:
         print(
-            f"  OK  gym_id={item['gym_id']} admin={item['gym_admin_email']} "
+            f"  OK  gym_id={item['gym_id']} admin_phone={item['gym_admin_phone']} "
             f"password_temporal={item['temp_password']}"
         )
     for item in result["skipped"]:

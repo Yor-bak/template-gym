@@ -8,11 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.inventory.models import InventoryItem
 from app.modules.inventory_sales.models import InventorySale
 from app.modules.users.models import Role
-from tests.conftest import make_gym, make_user
+from tests.conftest import make_gym, make_user, phone_from_email
 
 
 async def _login(client: AsyncClient, email: str, password: str) -> str:
-    resp = await client.post("/auth/login", json={"email": email, "password": password})
+    # email aquí es el identificador legado usado por los call-sites de este
+    # archivo (literal o de un User.email) — se deriva el phone determinístico
+    # correspondiente porque el login real ahora es por phone, no por email.
+    resp = await client.post(
+        "/auth/login", json={"phone": phone_from_email(email), "password": password}
+    )
     assert resp.status_code == 200, resp.text
     return resp.json()["access_token"]
 

@@ -4,11 +4,16 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.users.models import Role, User
-from tests.conftest import make_gym, make_user
+from tests.conftest import make_gym, make_user, phone_from_email
 
 
 async def _login(client: AsyncClient, email: str, password: str) -> str:
-    resp = await client.post("/auth/login", json={"email": email, "password": password})
+    # email aquí es el identificador legado usado por los call-sites de este
+    # archivo (literal o de un User.email) — se deriva el phone determinístico
+    # correspondiente porque el login real ahora es por phone, no por email.
+    resp = await client.post(
+        "/auth/login", json={"phone": phone_from_email(email), "password": password}
+    )
     assert resp.status_code == 200, resp.text
     return resp.json()["access_token"]
 
@@ -31,6 +36,7 @@ async def test_receptionist_limit_of_two(client: AsyncClient, db_session: AsyncS
     def payload(email: str) -> dict:
         return {
             "email": email,
+            "phone": phone_from_email(email),
             "password": "password123",
             "full_name": "Recepcionista",
             "role": "receptionist",
@@ -66,6 +72,7 @@ async def test_gym_admin_secondary_limit_of_one(client: AsyncClient, db_session:
     def payload(email: str) -> dict:
         return {
             "email": email,
+            "phone": phone_from_email(email),
             "password": "password123",
             "full_name": "Admin Secundario",
             "role": "gym_admin_secondary",
@@ -102,6 +109,7 @@ async def test_gym_admin_secondary_cannot_create_another_secondary(client: Async
         "/users",
         json={
             "email": "another-secondary@test.com",
+            "phone": phone_from_email("another-secondary@test.com"),
             "password": "password123",
             "full_name": "Otro Secundario",
             "role": "gym_admin_secondary",
@@ -125,6 +133,7 @@ async def test_cannot_create_gym_admin_via_staff_endpoint(client: AsyncClient, d
         "/users",
         json={
             "email": "otro-gym-admin@test.com",
+            "phone": phone_from_email("otro-gym-admin@test.com"),
             "password": "password123",
             "full_name": "Otro Titular",
             "role": "gym_admin",
@@ -162,6 +171,7 @@ async def test_admin_cannot_create_staff_in_another_gym_via_body(client: AsyncCl
         "/users",
         json={
             "email": "intruso@test.com",
+            "phone": phone_from_email("intruso@test.com"),
             "password": "password123",
             "full_name": "Recepcionista Intruso",
             "role": "receptionist",
@@ -211,6 +221,7 @@ async def test_platform_admin_can_target_any_gym_explicitly(client: AsyncClient,
         "/users",
         json={
             "email": "recepcion-b@test.com",
+            "phone": phone_from_email("recepcion-b@test.com"),
             "password": "password123",
             "full_name": "Recepcionista B",
             "role": "receptionist",
