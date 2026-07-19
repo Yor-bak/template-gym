@@ -1,23 +1,25 @@
-// Traduce las respuestas snake_case de apps/api a los tipos camelCase que ya
-// usan las pantallas (@/types) — mismo criterio que los mapeos DbX -> X que
-// ya existían para Supabase en lib/store.tsx, para no tocar cada componente.
+// Traduce las respuestas camelCase de apps/api (CamelModel, "no negociable"
+// según REQUERIMIENTOS_BACKEND_GYM.md §6 — ver apps/api/app/core/camel_model.py)
+// a los tipos que ya usan las pantallas (@/types) — mismo criterio que los
+// mapeos DbX -> X que ya existían para Supabase en lib/store.tsx, para no
+// tocar cada componente.
 import type { AccessLog, AccessResult, InventoryItem, InventorySale, Member, Membership } from '@/types';
 
 export interface ApiMember {
   id: string;
-  gym_id: string;
-  user_id: string | null;
-  member_number: string;
-  first_name: string;
-  last_name: string;
+  gymId: string;
+  userId: string | null;
+  memberNumber: string;
+  firstName: string;
+  lastName: string;
   phone: string;
   email: string | null;
   status: string;
-  start_date: string | null;
-  expiration_date: string | null;
-  mobile_app_status: string;
-  activation_code: string | null;
-  created_at: string;
+  startDate: string | null;
+  expirationDate: string | null;
+  mobileAppStatus: string;
+  activationCode: string | null;
+  createdAt: string;
 }
 
 // membershipId/createdBy no vienen en MemberRead (apps/api todavía no los
@@ -26,31 +28,31 @@ export interface ApiMember {
 export function mapMember(m: ApiMember): Member {
   return {
     id: m.id,
-    gymId: m.gym_id,
-    memberNumber: m.member_number,
-    firstName: m.first_name,
-    lastName: m.last_name,
+    gymId: m.gymId,
+    memberNumber: m.memberNumber,
+    firstName: m.firstName,
+    lastName: m.lastName,
     phone: m.phone,
     email: m.email ?? undefined,
     membershipId: '',
     status: m.status as Member['status'],
-    startDate: m.start_date ?? '',
-    expirationDate: m.expiration_date ?? '',
-    mobileAppStatus: m.mobile_app_status as Member['mobileAppStatus'],
-    activationCode: m.activation_code ?? undefined,
-    createdAt: m.created_at,
+    startDate: m.startDate ?? '',
+    expirationDate: m.expirationDate ?? '',
+    mobileAppStatus: m.mobileAppStatus as Member['mobileAppStatus'],
+    activationCode: m.activationCode ?? undefined,
+    createdAt: m.createdAt,
     createdBy: '',
   };
 }
 
 export interface ApiMembershipPlan {
   id: string;
-  gym_id: string;
+  gymId: string;
   name: string;
   price: number;
   duration: number;
-  duration_unit: string;
-  tolerance_days: number;
+  durationUnit: string;
+  toleranceDays: number;
   description: string | null;
   active: boolean;
 }
@@ -60,12 +62,12 @@ export interface ApiMembershipPlan {
 export function mapMembership(p: ApiMembershipPlan): Membership {
   return {
     id: p.id,
-    gymId: p.gym_id,
+    gymId: p.gymId,
     name: p.name,
     price: p.price,
     duration: p.duration,
-    durationUnit: p.duration_unit as Membership['durationUnit'],
-    toleranceDays: p.tolerance_days,
+    durationUnit: p.durationUnit as Membership['durationUnit'],
+    toleranceDays: p.toleranceDays,
     description: p.description ?? undefined,
     active: p.active,
     memberCount: 0,
@@ -75,94 +77,94 @@ export function mapMembership(p: ApiMembershipPlan): Membership {
 
 export interface ApiInventoryItem {
   id: string;
-  gym_id: string;
+  gymId: string;
   area: string;
   name: string;
   sku: string | null;
   quantity: number;
-  sale_price: number | null;
+  salePrice: number | null;
   status: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export function mapInventoryItem(i: ApiInventoryItem): InventoryItem {
   return {
     id: i.id,
-    gymId: i.gym_id,
+    gymId: i.gymId,
     area: i.area as InventoryItem['area'],
     sku: i.sku ?? undefined,
     name: i.name,
     quantity: i.quantity,
-    salePrice: i.sale_price ?? undefined,
+    salePrice: i.salePrice ?? undefined,
     status: i.status as InventoryItem['status'],
   };
 }
 
 export interface ApiInventorySale {
   id: string;
-  gym_id: string;
-  member_id: string | null;
+  gymId: string;
+  memberId: string | null;
   subtotal: number;
   total: number;
   method: string;
   status: string;
   notes: string | null;
-  sold_at: string;
-  items: { id: string; item_id: string; quantity: number; unit_price: number; subtotal: number }[];
+  soldAt: string;
+  items: { id: string; itemId: string; quantity: number; unitPrice: number; subtotal: number }[];
 }
 
 // registeredBy no viene en InventorySaleRead; productName se resuelve contra
-// el inventario ya cargado en el store (la API solo regresa item_id).
+// el inventario ya cargado en el store (la API solo regresa itemId).
 export function mapInventorySale(s: ApiInventorySale, itemNameById: Map<string, string>): InventorySale {
   return {
     id: s.id,
-    gymId: s.gym_id,
+    gymId: s.gymId,
     items: s.items.map((line) => ({
-      productId: line.item_id,
-      productName: itemNameById.get(line.item_id) ?? 'Producto',
+      productId: line.itemId,
+      productName: itemNameById.get(line.itemId) ?? 'Producto',
       quantity: line.quantity,
-      unitPrice: line.unit_price,
+      unitPrice: line.unitPrice,
       subtotal: line.subtotal,
     })),
     subtotal: s.subtotal,
     total: s.total,
     method: s.method as InventorySale['method'],
     status: s.status as InventorySale['status'],
-    soldAt: s.sold_at,
+    soldAt: s.soldAt,
     registeredBy: '',
-    memberId: s.member_id ?? undefined,
+    memberId: s.memberId ?? undefined,
     notes: s.notes ?? undefined,
   };
 }
 
 export interface ApiAccessLog {
   id: string;
-  gym_id: string;
-  member_id: string | null;
+  gymId: string;
+  memberId: string | null;
   result: string;
   reader: string;
-  scanned_at: string;
+  scannedAt: string;
 }
 
 // El backend emite "invalid_token"; el tipo AccessResult del frontend usa
 // "invalid_qr" — se normaliza aquí, no se cambia el tipo compartido.
-// AccessLogRead no incluye member_number/member_name (backend todavía no lo
+// AccessLogRead no incluye memberNumber/memberName (backend todavía no lo
 // expone) — se resuelven aquí contra la lista de miembros ya cargada en el
-// store en vez de dejarlos en blanco, ya que sí tenemos member_id.
+// store en vez de dejarlos en blanco, ya que sí tenemos memberId.
 export function mapAccessLog(
   l: ApiAccessLog,
   memberById: Map<string, { memberNumber: string; name: string }> = new Map()
 ): AccessLog {
   const result = l.result === 'invalid_token' ? 'invalid_qr' : (l.result as AccessResult);
-  const member = l.member_id ? memberById.get(l.member_id) : undefined;
+  const member = l.memberId ? memberById.get(l.memberId) : undefined;
   return {
     id: l.id,
-    gymId: l.gym_id,
-    memberId: l.member_id ?? undefined,
+    gymId: l.gymId,
+    memberId: l.memberId ?? undefined,
     memberNumber: member?.memberNumber,
     memberName: member?.name,
     result,
-    timestamp: l.scanned_at,
+    timestamp: l.scannedAt,
     reader: l.reader,
   };
 }

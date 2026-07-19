@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +8,8 @@ import { useAuth } from '@/contexts/auth-context';
 import { useMyClients } from '@/hooks/use-gym-data';
 import type { Member } from '@/types/database';
 
-// Misma identidad visual oscura que Acceso/Perfil/Rutina.
+// Misma identidad visual oscura que Acceso/Perfil/Rutina — el acento azul
+// (en vez del rojo del cliente) es el distintivo de la vista de entrenador.
 const colors = Colors.dark;
 
 export default function TrainerClientsScreen() {
@@ -17,12 +19,17 @@ export default function TrainerClientsScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <View style={styles.brandRow}>
+          <View style={styles.brandMark} />
+          <Text style={styles.brandWordmark}>AMERICAN FITNESS</Text>
+        </View>
+
         <View style={styles.headerRow}>
           <Text style={styles.title}>Mis clientes</Text>
           <Pressable
             style={({ pressed }) => [styles.scanButton, pressed && styles.scanButtonPressed]}
             onPress={() => router.push('/(trainer)/scan-client')}>
-            <Text style={styles.scanButtonIcon}>▢</Text>
+            <Ionicons name="qr-code-outline" size={16} color={colors.text} />
             <Text style={styles.scanButtonText}>Escanear cliente</Text>
           </Pressable>
         </View>
@@ -31,6 +38,9 @@ export default function TrainerClientsScreen() {
           <ActivityIndicator color={colors.accent} style={styles.loader} />
         ) : !clients?.length ? (
           <View style={styles.emptyState}>
+            <View style={styles.emptyIconBadge}>
+              <Ionicons name="people-outline" size={28} color={colors.accent} />
+            </View>
             <Text style={styles.emptyTitle}>Todavía no tienes clientes asignados</Text>
             <Text style={styles.emptyHint}>
               Toca &quot;Escanear cliente&quot; y lee el QR de acceso que el cliente ve en su app para asignártelo.
@@ -63,7 +73,7 @@ function ClientRow({ client }: { client: Member }) {
             <Text style={styles.rowName}>{fullName}</Text>
             {client.phone && <Text style={styles.rowPhone}>{client.phone}</Text>}
           </View>
-          <Text style={styles.chevron}>›</Text>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </View>
       )}
     </Pressable>
@@ -79,6 +89,25 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.four,
     gap: Spacing.three,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  brandMark: {
+    width: 14,
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+    transform: [{ rotate: '45deg' }],
+  },
+  brandWordmark: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+    fontStyle: 'italic',
+    letterSpacing: 0.5,
   },
   headerRow: {
     flexDirection: 'row',
@@ -103,10 +132,6 @@ const styles = StyleSheet.create({
   scanButtonPressed: {
     opacity: 0.8,
   },
-  scanButtonIcon: {
-    color: colors.text,
-    fontSize: 13,
-  },
   scanButtonText: {
     color: colors.text,
     fontSize: 13,
@@ -120,6 +145,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     paddingHorizontal: Spacing.three,
+  },
+  emptyIconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.one,
   },
   emptyTitle: {
     color: colors.text,
@@ -174,9 +208,5 @@ const styles = StyleSheet.create({
   rowPhone: {
     color: colors.textSecondary,
     fontSize: 12,
-  },
-  chevron: {
-    color: colors.textSecondary,
-    fontSize: 20,
   },
 });

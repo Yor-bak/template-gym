@@ -1,26 +1,32 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import EmailStr, field_validator
 
+from app.core.camel_model import CamelModel
+from app.core.validators import normalize_phone
 from app.modules.users.models import Role
 
 
-class UserCreate(BaseModel):
-    email: EmailStr
+class UserCreate(CamelModel):
+    phone: str
     password: str
     full_name: str
     role: Role
     gym_id: uuid.UUID | None = None
-    phone: str | None = None
+    email: EmailStr | None = None
+
+    @field_validator("phone")
+    @classmethod
+    def _normalize_phone(cls, v: str) -> str:
+        return normalize_phone(v)
 
 
-class UserRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class UserRead(CamelModel):
     id: uuid.UUID
-    email: EmailStr
+    phone: str
+    email: EmailStr | None
     full_name: str
     role: Role
     gym_id: uuid.UUID | None
-    phone: str | None
     active: bool
+    must_change_password: bool

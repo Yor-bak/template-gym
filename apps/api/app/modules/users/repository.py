@@ -15,6 +15,12 @@ async def get_by_email(db: AsyncSession, email: str) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def get_by_phone(db: AsyncSession, phone: str) -> User | None:
+    """phone debe llegar ya normalizado — ver app/core/validators.py."""
+    result = await db.execute(select(User).where(User.phone == phone))
+    return result.scalar_one_or_none()
+
+
 async def count_active_by_gym_and_role(db: AsyncSession, *, gym_id: uuid.UUID, role: Role) -> int:
     result = await db.execute(
         select(func.count())

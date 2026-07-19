@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -29,7 +28,7 @@ const HERO_IMAGE = 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,12 +37,12 @@ export default function LoginScreen() {
   async function handleSubmit() {
     setError(null);
     setLoading(true);
-    const { error: signInError } = await signIn(email.trim(), password);
+    const { error: signInError } = await signIn(phone.trim(), password);
     setLoading(false);
     if (signInError) setError(signInError);
   }
 
-  const canSubmit = !!email && !!password && !loading;
+  const canSubmit = !!phone && !!password && !loading;
 
   return (
     <View style={styles.container}>
@@ -71,13 +70,12 @@ export default function LoginScreen() {
 
           <View style={styles.form}>
             <View style={styles.field}>
-              <Ionicons name="mail-outline" size={20} color={colors.textSecondary} />
+              <Ionicons name="call-outline" size={20} color={colors.textSecondary} />
               <TextInput
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholder="Correo electrónico"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                placeholder="Número de teléfono"
                 placeholderTextColor={colors.textSecondary}
                 style={styles.input}
               />
@@ -118,9 +116,9 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
-            <Link href="/(auth)/register" asChild>
-              <Text style={styles.registerLink}>¿Tienes un código de activación del gym?</Text>
-            </Link>
+            <Text style={styles.helperText}>
+              ¿Aún no tienes cuenta? Pídele a recepción que te registre.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -217,9 +215,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1,
   },
-  registerLink: {
+  helperText: {
     color: colors.silver,
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center',
     marginTop: Spacing.one,
   },

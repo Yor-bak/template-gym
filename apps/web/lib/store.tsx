@@ -1866,14 +1866,14 @@ function ApiStoreProvider({ children }: { children: React.ReactNode }) {
 
   const addMember: AppStore['addMember'] = async (input) => {
     const created = await api.post<ApiMember>('/members', {
-      first_name: input.firstName ?? '',
-      last_name: input.lastName ?? '',
+      firstName: input.firstName ?? '',
+      lastName: input.lastName ?? '',
       phone: input.phone ?? '',
       email: input.email || undefined,
-      birth_date: input.birthDate || undefined,
-      membership_plan_id: input.membershipId || undefined,
-      emergency_contact: input.emergencyContact || undefined,
-      emergency_phone: input.emergencyPhone || undefined,
+      birthDate: input.birthDate || undefined,
+      membershipPlanId: input.membershipId || undefined,
+      emergencyContact: input.emergencyContact || undefined,
+      emergencyPhone: input.emergencyPhone || undefined,
       notes: input.notes || undefined,
     });
     const mapped = mapMember(created);
@@ -1886,8 +1886,8 @@ function ApiStoreProvider({ children }: { children: React.ReactNode }) {
       name: input.name ?? '',
       price: input.price ?? 0,
       duration: input.duration ?? 1,
-      duration_unit: input.durationUnit ?? 'months',
-      tolerance_days: input.toleranceDays ?? 0,
+      durationUnit: input.durationUnit ?? 'months',
+      toleranceDays: input.toleranceDays ?? 0,
       description: input.description || undefined,
     });
     const mapped = mapMembership(created);
@@ -1901,7 +1901,7 @@ function ApiStoreProvider({ children }: { children: React.ReactNode }) {
       name: item.name,
       sku: item.sku || undefined,
       quantity: item.quantity,
-      sale_price: item.salePrice || undefined,
+      salePrice: item.salePrice || undefined,
       status: item.status,
     }).then((created) => setInventory((prev) => [mapInventoryItem(created), ...prev]))
       .catch((err) => window.alert(err instanceof ApiError ? err.message : 'No se pudo guardar el artículo.'));
@@ -1909,9 +1909,9 @@ function ApiStoreProvider({ children }: { children: React.ReactNode }) {
 
   const completeInventorySale: AppStore['completeInventorySale'] = async ({ items, method, memberId, notes }) => {
     const created = await api.post<ApiInventorySale>('/inventory/sales', {
-      items: items.map((l) => ({ item_id: l.itemId, quantity: l.quantity })),
+      items: items.map((l) => ({ itemId: l.itemId, quantity: l.quantity })),
       method,
-      member_id: memberId || undefined,
+      memberId: memberId || undefined,
       notes: notes || undefined,
     });
     const itemNameById = new Map(inventory.map((i) => [i.id, i.name]));

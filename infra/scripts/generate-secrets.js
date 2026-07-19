@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Genera los secretos necesarios para infra/.env: POSTGRES_PASSWORD y
-// JWT_SECRET. No depende de librerías externas, solo del módulo `crypto` de Node.
+// Genera los secretos necesarios para infra/.env: POSTGRES_PASSWORD,
+// JWT_SECRET y QR_SECRET. No depende de librerías externas, solo del
+// módulo `crypto` de Node.
 //
 // Uso:
 //   node scripts/generate-secrets.js            imprime los valores
@@ -14,6 +15,9 @@ const path = require('path');
 const values = {
   POSTGRES_PASSWORD: crypto.randomBytes(24).toString('hex'),
   JWT_SECRET: crypto.randomBytes(32).toString('base64url'),
+  // Secreto separado del JWT a propósito (ver infra/.env.example) — firma el
+  // QR de acceso rotativo, se puede rotar sin invalidar sesiones activas.
+  QR_SECRET: crypto.randomBytes(32).toString('base64url'),
 };
 
 if (process.argv.includes('--write')) {

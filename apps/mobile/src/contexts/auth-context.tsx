@@ -14,13 +14,12 @@ interface AuthContextValue {
   session: MockSession | null;
   profile: Profile | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  /** Solo para clientes: requiere un código de activación válido dado por el gym. */
-  activateAccount: (params: {
-    email: string;
-    password: string;
-    activationCode: string;
-  }) => Promise<{ error: string | null }>;
+  /** true si la recepción/admin le dio una contraseña provisional y todavía
+   * no la cambia — la app debe forzar la pantalla de cambio antes de dejarlo
+   * entrar a cualquier otra cosa. */
+  mustChangePassword: boolean;
+  signIn: (phone: string, password: string) => Promise<{ error: string | null }>;
+  changePassword: (newPassword: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -28,6 +27,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<MockSession | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const profile = useMemo<Profile | null>(
@@ -44,23 +44,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       profile,
       isLoading,
-      signIn: async (email, password) => {
-        const { error, profileId } = mockDb.signIn(email, password);
+      mustChangePassword,
+      signIn: async (phone, password) => {
+        const { error, profileId, mustChangePassword: needsChange } = mockDb.signIn(phone, password);
         if (error || !profileId) return { error };
         setSession({ profileId });
+        setMustChangePassword(!!needsChange);
         return { error: null };
       },
-      activateAccount: async ({ email, password, activationCode }) => {
-        // No inicia sesión automáticamente: el registro original navegaba de
-        // vuelta al login para que el cliente entre con su nueva contraseña.
-        const { error } = mockDb.activateAccount(email, password, activationCode);
+      changePassword: async (newPassword) => {
+        if (!session) return { error: 'No hay sesión activa.' };
+        const { error } = mockDb.changePassword(session.profileId, newPassword);
+        if (!error) setMustChangePassword(false);
         return { error };
       },
       signOut: async () => {
         setSession(null);
+        setMustChangePassword(false);
       },
     }),
-    [session, profile, isLoading]
+    [session, profile, isLoading, mustChangePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,3 +1,4 @@
+import hashlib
 import os
 import uuid
 from collections.abc import AsyncGenerator
@@ -46,6 +47,14 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     from app.core.database import get_db
+    from app.core.limiter import limiter
+
+    # El rate limit de /auth/login (5/minute, slowapi) es real y deseado en
+    # producción, pero un solo test run hace muchos más de 5 logins desde el
+    # mismo IP de test — sin esto, la suite completa se vuelve inestable
+    # apenas se corre más de un test que loguea. Se desactiva solo para
+    # tests, nunca para la app real.
+    limiter.enabled = False
 
     # Una sesión nueva por request, igual que get_db en producción — no
     # reutilizar `db_session` aquí. Reutilizarla rompía cualquier test que
@@ -80,6 +89,17 @@ async def make_gym(db: AsyncSession, **overrides) -> Gym:
     return gym
 
 
+def phone_from_email(email: str) -> str:
+    """Deriva un teléfono determinístico de 10 dígitos a partir de un email
+    — SOLO para tests. Desde que phone es el identificador de login (no
+    email, decisión 2026-07-17), esto deja que los ~45 call-sites
+    existentes de _login(client, email, password) en los distintos archivos
+    de test sigan funcionando sin tocarlos uno por uno: _login internamente
+    convierte el email a este mismo teléfono antes de mandarlo."""
+    n = int(hashlib.sha256(email.encode()).hexdigest(), 16) % 10_000_000_000
+    return f"{n:010d}"
+
+
 async def make_user(db: AsyncSession, *, role: Role, gym_id=None, password: str = "password123", **overrides) -> tuple[User, str]:
     defaults = dict(
         email=f"{uuid.uuid4().hex[:8]}@test.com",
@@ -87,7 +107,9 @@ async def make_user(db: AsyncSession, *, role: Role, gym_id=None, password: str 
         role=role,
         gym_id=gym_id,
     )
-    user = User(password_hash=hash_password(password), **{**defaults, **overrides})
+    merged = {**defaults, **overrides}
+    merged.setdefault("phone", phone_from_email(merged.get("email") or uuid.uuid4().hex))
+    user = User(password_hash=hash_password(password), **merged)
     db.add(user)
     await db.flush()
     return user, password

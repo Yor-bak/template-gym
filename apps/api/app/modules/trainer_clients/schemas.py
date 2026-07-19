@@ -1,27 +1,23 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from app.core.camel_model import CamelModel
 
 
-class LinkClientRequest(BaseModel):
+class LinkClientRequest(CamelModel):
     token: str
 
 
-class TrainerClientRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class TrainerClientRead(CamelModel):
     id: uuid.UUID
     trainer_id: uuid.UUID
     client_id: uuid.UUID
     assigned_at: datetime
 
 
-class TrainerClientMemberRead(BaseModel):
+class TrainerClientMemberRead(CamelModel):
     """Vista mínima del miembro para la pantalla 'Mis clientes' del
     entrenador — no expone toda la ficha, solo lo necesario para la lista."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     first_name: str

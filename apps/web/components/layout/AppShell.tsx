@@ -9,7 +9,7 @@ import { ReceptionSetupModal } from '@/components/camera/ReceptionSetupModal';
 import { applyPrimaryColor, loadPrimaryColor } from '@/lib/theme';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, mustChangePassword } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const camera = useCamera();
@@ -26,10 +26,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // Espera a que la sesión (demo en localStorage o Supabase) termine de
     // rehidratar antes de decidir el redirect; si no, un refresh/deep-link
     // patea a /login aunque haya sesión guardada.
-    if (!isLoading && !user && pathname !== '/login') {
+    if (isLoading) return;
+    // Único punto de la app que decide el rebote a /change-password: con
+    // must_change_password=true el backend bloquea todo endpoint protegido
+    // (incluido /users/me, por eso `user` puede venir null aquí) salvo
+    // /auth/change-password — ver apps/api/app/auth/dependencies.py.
+    if (mustChangePassword && pathname !== '/change-password') {
+      router.push('/change-password');
+      return;
+    }
+    if (!mustChangePassword && !user && pathname !== '/login') {
       router.push('/login');
     }
-  }, [user, isLoading, pathname, router]);
+  }, [user, isLoading, mustChangePassword, pathname, router]);
 
   // Al cerrar sesión (user pasa de autenticado a null) se detiene el stream.
   useEffect(() => {

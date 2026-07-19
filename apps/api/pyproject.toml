@@ -18,6 +18,8 @@ dependencies = [
   # gimnasios, Decisión #10 de ese proyecto) — antes solo era dependencia de
   # test (para el TestClient de FastAPI), ahora también de runtime.
   "httpx>=0.27",
+  "slowapi>=0.1.9",
+  "gunicorn>=22.0.0",
 ]
 
 [dependency-groups]

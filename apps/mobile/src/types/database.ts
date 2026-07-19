@@ -110,6 +110,11 @@ export interface Routine {
   client_id: string | null;
   title: string;
   goal: string | null;
+  /** Cuando la rutina es genérica (sin cliente asignado, `client_id: null`)
+   * y pertenece a un grupo muscular fijo (pierna, espalda, torso...) — solo
+   * se le ofrecen al cliente sin entrenador todavía, como punto de partida
+   * mientras no tiene algo personalizado. */
+  muscle_group: string | null;
   created_at: string;
 }
 
@@ -122,6 +127,25 @@ export interface RoutineExercise {
   rest_seconds: number | null;
   order_index: number;
   notes: string | null;
+  /** Referencia opcional al catálogo de ejercicios (lib/exercise-catalog.ts)
+   * — cuando existe, la app puede mostrar músculo trabajado e instrucciones
+   * paso a paso. Los ejercicios escritos a mano (sin elegir del catálogo)
+   * simplemente quedan en null. */
+  catalog_id: string | null;
+}
+
+/** Un registro de que el cliente terminó una rutina cierto día — alimenta el
+ * calendario de la pantalla de Rutina. Solo vive en el cliente (no hay
+ * seguimiento de series/reps reales todavía, solo "la completó ese día"). */
+export interface WorkoutLog {
+  id: string;
+  member_id: string;
+  routine_id: string;
+  routine_title: string;
+  /** Fecha local en formato YYYY-MM-DD (sin hora) — así el calendario
+   * compara por día sin líos de zona horaria. */
+  completed_date: string;
+  completed_at: string;
 }
 
 export type AccessResult =

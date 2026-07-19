@@ -3,13 +3,18 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.users.models import Role
-from tests.conftest import make_gym, make_user
+from tests.conftest import make_gym, make_user, phone_from_email
 
 
 async def _login(client: AsyncClient, email: str, password: str) -> str:
-    resp = await client.post("/auth/login", json={"email": email, "password": password})
+    # email aquí es el identificador legado usado por los call-sites de este
+    # archivo (literal o de un User.email) — se deriva el phone determinístico
+    # correspondiente porque el login real ahora es por phone, no por email.
+    resp = await client.post(
+        "/auth/login", json={"phone": phone_from_email(email), "password": password}
+    )
     assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    return resp.json()["accessToken"]
 
 
 async def _admin_headers(client: AsyncClient, db_session: AsyncSession) -> dict[str, str]:
@@ -65,4 +70,4 @@ async def test_create_plan_accepts_valid_payload(client: AsyncClient, db_session
     body = resp.json()
     assert body["price"] == 500
     assert body["duration"] == 1
-    assert body["tolerance_days"] == 0
+    assert body["toleranceDays"] == 0

@@ -45,9 +45,9 @@ async def create_staff_user(db: AsyncSession, payload: UserCreate, *, authz: Aut
     if target_gym_id is None:
         raise ForbiddenError("gym_id es obligatorio para este rol")
 
-    existing = await users_repo.get_by_email(db, payload.email)
+    existing = await users_repo.get_by_phone(db, payload.phone)
     if existing is not None:
-        raise ConflictError("Ya existe una cuenta con ese correo")
+        raise ConflictError("Ya existe una cuenta con ese teléfono")
 
     # Límite de cuentas activas por rol — COUNT(*) y el INSERT posterior
     # ocurren en la misma transacción de la sesión (AsyncSession autobegin:
@@ -70,12 +70,12 @@ async def create_staff_user(db: AsyncSession, payload: UserCreate, *, authz: Aut
             )
 
     user = User(
+        phone=payload.phone,
         email=payload.email,
         password_hash=hash_password(payload.password),
         full_name=payload.full_name,
         role=payload.role,
         gym_id=target_gym_id,
-        phone=payload.phone,
     )
     user = await users_repo.create(db, user=user)
     await db.commit()

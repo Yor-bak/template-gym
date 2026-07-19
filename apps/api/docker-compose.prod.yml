@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: j2ec-gym-db-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - j2ec_gym_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: j2ec-gym-backend-prod
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRY_MIN: ${JWT_EXPIRY_MIN}
+      QR_SECRET: ${QR_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      ENV: production
+      ADMIN_PANEL_BASE_URL: ${ADMIN_PANEL_BASE_URL}
+      ADMIN_PANEL_SERVICE_KEY: ${ADMIN_PANEL_SERVICE_KEY}
+    ports:
+      - "127.0.0.1:8020:8000"
+
+volumes:
+  j2ec_gym_data_prod:
