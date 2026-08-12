@@ -8,18 +8,22 @@ Desplegado con `apps/api/docker-compose.prod.yml` y `apps/web/docker-compose.pro
 
 | Servicio | Contenedor | Puerto host | Puerto interno | Notas |
 |---|---|---|---|---|
-| API (FastAPI, gunicorn) | `j2ec-gym-backend-prod` | `127.0.0.1:8020` | `8000` | Dominio previsto: `api-gym.j2ec-nodes.com` (pendiente de activar en `CORS_ORIGINS`, ver `apps/api/.env.prod.example`). |
-| Dashboard web (Next.js) | `j2ec-gym-frontend-prod` | `127.0.0.1:3020` | `3000` | Dominio previsto: `gym.j2ec-nodes.com`. |
+| API (FastAPI, gunicorn) | `j2ec-gym-backend-prod` | `127.0.0.1:8020` | `8000` | Dominio: `https://api-gym.j2ec-nodes.com` (confirmado activo, `/health` responde 200). |
+| Dashboard web (Next.js) | `j2ec-gym-frontend-prod` | `127.0.0.1:3020` | `3000` | Dominio: `https://gym.j2ec-nodes.com` (confirmado activo). Apunta a `api-gym.j2ec-nodes.com` — **no** al backend del Pi (ver abajo), son bases de datos separadas. |
 | Postgres | `j2ec-gym-db-prod` | (sin publicar a host, solo red interna del compose) | `5432` | Solo accesible desde el contenedor `backend`. |
 
-## Servidor de desarrollo/staging genérico (`infra/`)
+## Servidor del Pi (dominio `j2ec.net` — distinto de `j2ec-nodes.com`)
 
-`infra/docker-compose.yml` es un stack alternativo (Postgres + API, self-hosted) pensado para un servidor de desarrollo/staging separado de `forge02` — no se usa en la ruta de producción actual, que vive en los `docker-compose.prod.yml` de cada app. Si se despliega en algún servidor, completar aquí:
+Backend self-hosted vía `infra/docker-compose.yml`, expuesto por un túnel de Cloudflare (`nova-tunnel`, ya usado por otros proyectos del equipo en el mismo Pi — ver `~/.cloudflared/config.yml` y `/etc/cloudflared/config.yml` en el Pi).
 
-| Servicio | Puerto (host) | Variable en `.env` | Notas |
+| Servicio | Puerto (host) | Dominio | Notas |
 |---|---|---|---|
-| API (FastAPI) | `8000` (default, confirmar/ajustar al desplegar) | `API_PORT` | |
-| Postgres | `5432` (default, confirmar/ajustar al desplegar) | `DB_PORT` | Solo `127.0.0.1` — nunca expuesto a internet. |
+| API (FastAPI) | `8010` (`API_PORT` en `infra/.env`) | `https://gym-api.j2ec.net` | Confirmado activo, incluye el módulo de rutinas (`routines`, `routine_exercises`, `workout_logs`) que **no existe** en el backend de forge02. |
+| Postgres | `5433` (`DB_PORT`) | — | Solo `127.0.0.1`. |
+
+**apps/mobile apunta aquí por defecto** (`EXPO_PUBLIC_API_URL` en `apps/mobile/.env`) — el dashboard web (forge02) y la app móvil (Pi) están en **backends distintos y sin datos compartidos** mientras no se reconstruya `apps/web` en forge02 apuntando a esta URL.
+
+**Nota sobre `api.gym.j2ec.net` (dos niveles, no usarlo)**: se intentó primero ese hostname pero el certificado SSL Universal gratis de Cloudflare no cubre subdominios anidados de 2 niveles — solo `gym-api.j2ec.net` (un nivel) queda cubierto por el wildcard `*.j2ec.net` sin pagar Advanced Certificate Manager.
 
 **Antes de correr `docker compose up` en un servidor nuevo o compartido**: revisa qué puertos ya están ocupados con `docker ps -a` y `sudo lsof -i :PUERTO`, y ajusta la variable correspondiente en el `.env` si hace falta. Actualiza esta tabla con el valor real que quedó asignado.
 
