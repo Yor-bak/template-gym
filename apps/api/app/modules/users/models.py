@@ -70,8 +70,20 @@ class User(Base, UUIDPkMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("gyms.id", ondelete="SET NULL")
     )
     role: Mapped[Role] = mapped_column(RoleType, nullable=False)
-    email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    # Identificador de login (decisión 2026-07-17): antes era email. Se
+    # guarda ya normalizado (10 dígitos, ver app/core/validators.py) — nunca
+    # el string crudo que mandó el cliente.
+    phone: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    # Ya no es el identificador de login — dato de contacto opcional. Único
+    # cuando está presente (Postgres permite múltiples NULL en un índice
+    # único), pero ya no obligatorio.
+    email: Mapped[str | None] = mapped_column(String, unique=True)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     full_name: Mapped[str] = mapped_column(String, nullable=False)
-    phone: Mapped[str | None] = mapped_column(String)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # True siempre que el usuario se crea vía aprovisionamiento (contraseña
+    # elegida por otra persona o el fallback fijo, nunca por el propio
+    # usuario) — ver app/integrations/provisioning_service.py y
+    # app/auth/dependencies.py para el enforcement real (bloquea todo
+    # endpoint protegido salvo /auth/change-password mientras sea true).
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

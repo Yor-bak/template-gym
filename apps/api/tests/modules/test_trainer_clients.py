@@ -8,13 +8,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.access.models import AccessLog
 from app.modules.trainer_clients.models import TrainerClient
 from app.modules.users.models import Role
-from tests.conftest import make_gym, make_member, make_user
+from tests.conftest import make_gym, make_member, make_user, phone_from_email
 
 
 async def _login(client: AsyncClient, email: str, password: str) -> str:
-    resp = await client.post("/auth/login", json={"email": email, "password": password})
+    # email aquí es el identificador legado usado por los call-sites de este
+    # archivo (literal o de un User.email) — se deriva el phone determinístico
+    # correspondiente porque el login real ahora es por phone, no por email.
+    resp = await client.post(
+        "/auth/login", json={"phone": phone_from_email(email), "password": password}
+    )
     assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    return resp.json()["accessToken"]
 
 
 async def _make_client_with_token(client: AsyncClient, db: AsyncSession, *, gym_id, email: str):
@@ -47,8 +52,8 @@ async def test_trainer_links_client_by_scanning_qr(client: AsyncClient, db_sessi
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["trainer_id"] == str(trainer.id)
-    assert body["client_id"] == str(member.id)
+    assert body["trainerId"] == str(trainer.id)
+    assert body["clientId"] == str(member.id)
 
     # Verificación real contra la BD.
     result = await db_session.execute(select(TrainerClient).where(TrainerClient.client_id == member.id))

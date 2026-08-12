@@ -1,10 +1,9 @@
 """Núcleo de sincronización de aprovisionamiento de gimnasios desde
 admin-panel-j2ec (Decisión #10 de ese proyecto). Ver conversación del
 2026-07-15 y docs/BACKEND_PREPARATION_AUDIT_GYM.md — el mecanismo de disparo
-(endpoint manual vs. job programado) y la entrega de la contraseña inicial
-al cliente real son decisiones pendientes, deliberadamente NO resueltas
-aquí; esta función es el núcleo reusable sin importar qué termine
-llamándola.
+(endpoint manual vs. job programado) sigue sin resolverse (ver
+scripts/sync_gym_provisioning.py, el disparador manual actual); esta función
+es el núcleo reusable sin importar qué termine llamándola.
 
 Por cada solicitud pendiente:
 1. Crea el gym + su gym_admin en una única transacción de este lado.
@@ -12,22 +11,28 @@ Por cada solicitud pendiente:
 3. Si falla la creación, NO se llama a consume() — la fila queda 'pending'
    y se reintenta en la siguiente sincronización.
 
-Nota de payload (bloqueante conocido, 2026-07-15): el payload que hoy
-escribe activation_service.py en admin-panel-j2ec-backend solo trae
-`clientId, clientNumber, slug, businessType, accessPhone,
-mustChangePassword` — NO incluye `businessName` ni un correo de acceso.
-Sin esos dos campos no se puede crear un gym_admin funcional (User.email es
-NOT NULL + único). En vez de inventar un nombre o correo falso, esas filas
-se registran como "skipped" con el motivo exacto — no se consumen, y no se
-crea una cuenta rota."""
+Identificador de login (decisión 2026-07-17): el gym_admin se identifica por
+accessPhone (normalizado, ver app/core/validators.py), no por email — email
+es opcional, solo dato de contacto. accessPhone es obligatorio en el
+payload; sin él la fila se marca "skipped", igual que antes con email.
+
+Contraseña inicial (decisión 2026-07-17): si el payload trae
+initialPassword (elegida en la UI de activación de admin-panel-j2ec), se usa
+esa, hasheada. Si no viene, se usa el fallback fijo DEFAULT_TEMP_PASSWORD —
+decisión explícita del usuario, con el riesgo de seguridad ya señalado y
+aceptado por él. En ambos casos must_change_password queda en true: el
+usuario NUNCA puede usar el sistema con la contraseña de aprovisionamiento
+sin cambiarla primero (enforcement real en app/auth/dependencies.py —
+a diferencia de admin-panel-j2ec, donde el mismo campo existe pero no
+bloquea nada)."""
 
 import logging
 import re
-import secrets
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
+from app.core.validators import normalize_phone
 from app.integrations.admin_panel_client import (
     AdminPanelError,
     ProvisioningRequest,
@@ -43,18 +48,16 @@ logger = logging.getLogger("app.provisioning")
 
 _PREFIX_CHARS = re.compile(r"[^A-Z0-9]")
 
+# Fallback fijo cuando el payload no trae initialPassword — decisión
+# explícita del usuario (2026-07-17), aceptando el riesgo de seguridad de un
+# valor conocido/adivinable. Mitigado por must_change_password=True: nunca
+# es utilizable más allá del primer login + cambio obligatorio.
+DEFAULT_TEMP_PASSWORD = "123456"
+
 
 class ProvisioningPayloadError(Exception):
     """El payload de la solicitud no trae los campos mínimos para
     aprovisionar un gimnasio funcional."""
-
-
-def _generate_temp_password() -> str:
-    # Criptográficamente seguro (secrets, no random). Se retorna al caller
-    # una sola vez y NUNCA se loguea — ver la nota sobre entrega al cliente
-    # real en la conversación del 2026-07-15 (decisión de producto
-    # pendiente: hoy no existe ningún mecanismo para comunicársela).
-    return secrets.token_urlsafe(18)
 
 
 def _derive_member_prefix(seed: str) -> str:
@@ -72,19 +75,27 @@ def _derive_member_prefix(seed: str) -> str:
 async def _provision_one(db: AsyncSession, req: ProvisioningRequest) -> tuple[Gym, User, str]:
     payload = req.payload
     business_name = payload.get("businessName") or payload.get("business_name")
-    email = payload.get("email") or payload.get("specialistEmail") or payload.get("accessEmail")
+    raw_phone = payload.get("accessPhone") or payload.get("access_phone")
     slug = payload.get("slug")
+    email = payload.get("email") or payload.get("specialistEmail") or payload.get("accessEmail")
+    initial_password = payload.get("initialPassword") or payload.get("initial_password")
 
     missing = [
-        name for name, value in (("businessName", business_name), ("email", email), ("slug", slug))
+        name for name, value in (("businessName", business_name), ("accessPhone", raw_phone), ("slug", slug))
         if not value
     ]
     if missing:
         raise ProvisioningPayloadError(
             f"Solicitud {req.id} (client_id={req.client_id}): faltan campos {missing} en el "
-            "payload — no se puede crear un gym_admin funcional sin ellos. Ver la nota de "
-            "payload en app/integrations/provisioning_service.py."
+            "payload — no se puede crear un gym_admin funcional sin ellos."
         )
+
+    try:
+        phone = normalize_phone(raw_phone)
+    except ValueError as exc:
+        raise ProvisioningPayloadError(
+            f"Solicitud {req.id}: accessPhone inválido ({raw_phone!r}): {exc}"
+        ) from exc
 
     existing_gym = await gyms_repo.get_by_slug(db, slug)
     if existing_gym is not None:
@@ -92,24 +103,26 @@ async def _provision_one(db: AsyncSession, req: ProvisioningRequest) -> tuple[Gy
         # de poder llamar a consume() (ver sync_pending_gym_provisioning) —
         # no se duplica, se reutiliza el gym ya creado. El admin ya debería
         # existir también en ese caso (misma transacción del intento previo).
-        existing_admin = await users_repo.get_by_email(db, email)
+        existing_admin = await users_repo.get_by_phone(db, phone)
         if existing_admin is not None:
             return existing_gym, existing_admin, ""
         raise ProvisioningPayloadError(
             f"Solicitud {req.id}: ya existe un gym con slug='{slug}' pero sin el gym_admin "
-            f"esperado (email={email}) — requiere revisión manual, no se reintenta solo."
+            f"esperado (phone={phone}) — requiere revisión manual, no se reintenta solo."
         )
 
     gym = Gym(name=business_name, slug=slug, member_prefix=_derive_member_prefix(slug))
     gym = await gyms_repo.create(db, gym=gym)
 
-    temp_password = _generate_temp_password()
+    temp_password = initial_password or DEFAULT_TEMP_PASSWORD
     admin = User(
+        phone=phone,
         email=email,
         password_hash=hash_password(temp_password),
         full_name=business_name,
         role=Role.GYM_ADMIN,
         gym_id=gym.id,
+        must_change_password=True,
     )
     admin = await users_repo.create(db, user=admin)
     return gym, admin, temp_password
@@ -157,10 +170,10 @@ async def sync_pending_gym_provisioning(db: AsyncSession) -> dict:
         provisioned.append({
             "request_id": str(req.id),
             "gym_id": str(gym.id),
-            "gym_admin_email": admin.email,
-            # La contraseña temporal se expone SOLO en este resultado en
-            # memoria, para que quien dispare la sincronización decida cómo
-            # entregarla — nunca se loguea (ver decisión pendiente #4).
+            "gym_admin_phone": admin.phone,
+            # La contraseña (elegida o el fallback fijo) se expone SOLO en
+            # este resultado en memoria, para que quien dispare la
+            # sincronización pueda comunicarla — nunca se loguea.
             "temp_password": temp_password,
         })
 

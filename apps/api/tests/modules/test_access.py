@@ -11,13 +11,18 @@ from app.modules.access.models import AccessLog
 from app.modules.members.models import Member
 from app.modules.membership_plans.models import MembershipPlan
 from app.modules.users.models import Role
-from tests.conftest import make_gym, make_member, make_user
+from tests.conftest import make_gym, make_member, make_user, phone_from_email
 
 
 async def _login(client: AsyncClient, email: str, password: str) -> str:
-    resp = await client.post("/auth/login", json={"email": email, "password": password})
+    # email aquí es el identificador legado usado por los call-sites de este
+    # archivo (literal o de un User.email) — se deriva el phone determinístico
+    # correspondiente porque el login real ahora es por phone, no por email.
+    resp = await client.post(
+        "/auth/login", json={"phone": phone_from_email(email), "password": password}
+    )
     assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    return resp.json()["accessToken"]
 
 
 async def _make_active_plan(db: AsyncSession, *, gym_id, tolerance_days: int = 0) -> MembershipPlan:
@@ -80,7 +85,7 @@ async def test_client_generates_token_and_reception_scans_authorized(client: Asy
     assert scan_resp.status_code == 200, scan_resp.text
     body = scan_resp.json()
     assert body["result"] == "authorized"
-    assert body["member_id"] == str(member.id)
+    assert body["memberId"] == str(member.id)
 
     # Verificación real contra la BD, no solo la respuesta.
     result = await db_session.execute(select(AccessLog).where(AccessLog.gym_id == gym.id))
@@ -135,8 +140,8 @@ async def test_scan_garbage_token_logs_invalid_under_scanning_staff_gym(client: 
     assert resp.status_code == 200
     body = resp.json()
     assert body["result"] == "invalid_token"
-    assert body["member_id"] is None
-    assert body["gym_id"] == str(gym.id)
+    assert body["memberId"] is None
+    assert body["gymId"] == str(gym.id)
 
 
 @pytest.mark.asyncio
@@ -174,8 +179,8 @@ async def test_scan_rejects_valid_token_from_another_gym_without_leaking_status(
     assert resp.status_code == 200
     body = resp.json()
     assert body["result"] == "invalid_token"
-    assert body["member_id"] is None
-    assert body["gym_id"] == str(gym_a.id)
+    assert body["memberId"] is None
+    assert body["gymId"] == str(gym_a.id)
 
     # El log quedó registrado en A (quien escaneó), nunca tocó nada de B.
     result_b = await db_session.execute(select(AccessLog).where(AccessLog.gym_id == gym_b.id))
