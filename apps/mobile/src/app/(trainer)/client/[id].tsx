@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -8,9 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExercisePickerModal } from '@/components/exercise-catalog/exercise-picker-modal';
 import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
-import { useClientRoutine, useMember } from '@/hooks/use-gym-data';
+import { useClientRoutine, useMember, useSaveClientRoutine } from '@/hooks/use-gym-data';
 import type { CatalogExercise } from '@/lib/exercise-catalog';
-import { mockDb } from '@/lib/mock-db';
 
 // Misma identidad visual oscura que el resto de la vista de entrenador —
 // acento azul en vez del rojo del cliente.
@@ -21,7 +19,7 @@ type EditableExercise = {
   name: string;
   sets: string;
   reps: string;
-  rest_seconds: string;
+  restSeconds: string;
   notes: string;
   catalogId: string | null;
 };
@@ -30,7 +28,7 @@ const EMPTY_EXERCISE: EditableExercise = {
   name: '',
   sets: '3',
   reps: '10',
-  rest_seconds: '60',
+  restSeconds: '60',
   notes: '',
   catalogId: null,
 };
@@ -38,15 +36,14 @@ const EMPTY_EXERCISE: EditableExercise = {
 export default function ClientRoutineEditorScreen() {
   const { id: clientId } = useLocalSearchParams<{ id: string }>();
   const { profile: trainer } = useAuth();
-  const queryClient = useQueryClient();
   const { data: client } = useMember(clientId);
   const { data: routine, isLoading } = useClientRoutine(clientId);
+  const saveRoutine = useSaveClientRoutine(clientId);
 
   const [title, setTitle] = useState('');
   const [goal, setGoal] = useState('');
   const [exercises, setExercises] = useState<EditableExercise[]>([]);
   const [newExercise, setNewExercise] = useState<EditableExercise>(EMPTY_EXERCISE);
-  const [saving, setSaving] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
   const initialized = useRef(false);
 
@@ -57,16 +54,16 @@ export default function ClientRoutineEditorScreen() {
       setTitle(routine.title);
       setGoal(routine.goal ?? '');
       setExercises(
-        [...routine.routine_exercises]
-          .sort((a, b) => a.order_index - b.order_index)
+        [...routine.routineExercises]
+          .sort((a, b) => a.orderIndex - b.orderIndex)
           .map((e) => ({
             id: e.id,
             name: e.name,
             sets: String(e.sets),
             reps: e.reps,
-            rest_seconds: e.rest_seconds != null ? String(e.rest_seconds) : '',
+            restSeconds: e.restSeconds != null ? String(e.restSeconds) : '',
             notes: e.notes ?? '',
-            catalogId: e.catalog_id,
+            catalogId: e.catalogId,
           }))
       );
     }
@@ -88,26 +85,20 @@ export default function ClientRoutineEditorScreen() {
 
   async function handleSave() {
     if (!trainer?.id || !clientId || !title.trim()) return;
-    setSaving(true);
 
-    mockDb.saveClientRoutine({
-      trainerId: trainer.id,
-      clientId,
+    await saveRoutine.mutateAsync({
       title: title.trim(),
       goal: goal.trim() || null,
-      exercises: exercises.map((e) => ({
+      exercises: exercises.map((e, index) => ({
         name: e.name.trim(),
         sets: Number(e.sets) || 0,
         reps: e.reps.trim(),
-        rest_seconds: e.rest_seconds ? Number(e.rest_seconds) : null,
-        order_index: 0,
+        restSeconds: e.restSeconds ? Number(e.restSeconds) : null,
+        orderIndex: index,
         notes: e.notes.trim() || null,
-        catalog_id: e.catalogId,
+        catalogId: e.catalogId,
       })),
     });
-
-    await queryClient.invalidateQueries({ queryKey: ['client-routine', clientId] });
-    setSaving(false);
   }
 
   if (isLoading) {
@@ -131,11 +122,11 @@ export default function ClientRoutineEditorScreen() {
           {client && (
             <View style={styles.clientHeader}>
               <View style={styles.clientAvatar}>
-                <Text style={styles.clientAvatarInitial}>{client.first_name.charAt(0).toUpperCase()}</Text>
+                <Text style={styles.clientAvatarInitial}>{client.firstName.charAt(0).toUpperCase()}</Text>
               </View>
               <View>
                 <Text style={styles.clientName}>
-                  {client.first_name} {client.last_name}
+                  {client.firstName} {client.lastName}
                 </Text>
                 <Text style={styles.clientSubtitle}>Rutina personalizada</Text>
               </View>
@@ -197,7 +188,7 @@ export default function ClientRoutineEditorScreen() {
                 </View>
                 <Text style={styles.exerciseMeta}>
                   {exercise.sets} series × {exercise.reps} reps
-                  {exercise.rest_seconds ? ` · descanso ${exercise.rest_seconds}s` : ''}
+                  {exercise.restSeconds ? ` · descanso ${exercise.restSeconds}s` : ''}
                 </Text>
                 {exercise.notes ? <Text style={styles.exerciseNotes}>{exercise.notes}</Text> : null}
               </View>
@@ -248,8 +239,8 @@ export default function ClientRoutineEditorScreen() {
                 <Field label="Descanso (s)">
                   <TextInput
                     style={styles.input}
-                    value={newExercise.rest_seconds}
-                    onChangeText={(rest_seconds) => setNewExercise((prev) => ({ ...prev, rest_seconds }))}
+                    value={newExercise.restSeconds}
+                    onChangeText={(restSeconds) => setNewExercise((prev) => ({ ...prev, restSeconds }))}
                     keyboardType="number-pad"
                     placeholderTextColor={colors.textSecondary}
                   />
@@ -274,10 +265,10 @@ export default function ClientRoutineEditorScreen() {
           </View>
 
           <Pressable
-            style={[styles.primaryButton, (!title.trim() || saving) && styles.buttonDisabled]}
-            disabled={!title.trim() || saving}
+            style={[styles.primaryButton, (!title.trim() || saveRoutine.isPending) && styles.buttonDisabled]}
+            disabled={!title.trim() || saveRoutine.isPending}
             onPress={handleSave}>
-            {saving ? (
+            {saveRoutine.isPending ? (
               <ActivityIndicator color={colors.text} />
             ) : (
               <>

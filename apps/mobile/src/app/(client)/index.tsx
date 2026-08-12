@@ -59,7 +59,7 @@ export default function ClientHomeScreen() {
     return () => clearInterval(id);
   }, [dataUpdatedAt]);
 
-  const firstName = profile?.full_name?.split(' ')[0] ?? '';
+  const firstName = profile?.fullName?.split(' ')[0] ?? '';
 
   return (
     <View style={styles.container}>
@@ -87,8 +87,8 @@ export default function ClientHomeScreen() {
             <View style={styles.qrInner}>
               {loadingCode || loadingMember ? (
                 <ActivityIndicator color={colors.danger} />
-              ) : accessCode?.active && isActive ? (
-                <QRCode value={accessCode.code} size={200} />
+              ) : accessCode?.token && isActive ? (
+                <QRCode value={accessCode.token} size={200} />
               ) : (
                 <Text style={styles.qrDisabledText}>Renueva tu suscripción para generar tu QR de acceso</Text>
               )}

@@ -1,69 +1,81 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-import { mockDb } from '@/lib/mock-db';
-import type { Profile } from '@/types/database';
-
-// Sesión simplificada en modo mock: no hay JWT ni servidor, solo un id de
-// perfil guardado localmente. Cuando exista el backend en FastAPI esto vuelve
-// a ser una sesión real (token + refresh).
-interface MockSession {
-  profileId: string;
-}
+import { authApi, getToken } from '@/lib/api-client';
+import type { User } from '@/types/database';
 
 interface AuthContextValue {
-  session: MockSession | null;
-  profile: Profile | null;
+  session: { userId: string } | null;
+  profile: User | null;
   isLoading: boolean;
   /** true si la recepción/admin le dio una contraseña provisional y todavía
    * no la cambia — la app debe forzar la pantalla de cambio antes de dejarlo
-   * entrar a cualquier otra cosa. */
+   * entrar a cualquier otra cosa. Viene directo del backend (must_change_password). */
   mustChangePassword: boolean;
   signIn: (phone: string, password: string) => Promise<{ error: string | null }>;
-  changePassword: (newPassword: string) => Promise<{ error: string | null }>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<MockSession | null>(null);
-  const [mustChangePassword, setMustChangePassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [profile, setProfile] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const profile = useMemo<Profile | null>(
-    () => (session ? mockDb.findProfile(session.profileId) : null),
-    [session]
-  );
-
+  // Al abrir la app, si ya hay un token guardado (SecureStore) se intenta
+  // reanudar la sesión pidiendo el usuario actual — evita pedir login cada
+  // vez que se reabre la app mientras el JWT siga vigente.
   useEffect(() => {
-    setIsLoading(false);
+    (async () => {
+      const token = await getToken();
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const me = await authApi.me();
+        setProfile(me);
+      } catch {
+        await authApi.signOut();
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      session,
+      session: profile ? { userId: profile.id } : null,
       profile,
       isLoading,
-      mustChangePassword,
+      mustChangePassword: profile?.mustChangePassword ?? false,
       signIn: async (phone, password) => {
-        const { error, profileId, mustChangePassword: needsChange } = mockDb.signIn(phone, password);
-        if (error || !profileId) return { error };
-        setSession({ profileId });
-        setMustChangePassword(!!needsChange);
+        const { error, user } = await authApi.login(phone, password);
+        if (error || !user) return { error };
+        setProfile(user);
         return { error: null };
       },
-      changePassword: async (newPassword) => {
-        if (!session) return { error: 'No hay sesión activa.' };
-        const { error } = mockDb.changePassword(session.profileId, newPassword);
-        if (!error) setMustChangePassword(false);
+      changePassword: async (currentPassword, newPassword) => {
+        const { error } = await authApi.changePassword(currentPassword, newPassword);
+        if (!error && profile) setProfile({ ...profile, mustChangePassword: false });
         return { error };
       },
       signOut: async () => {
-        setSession(null);
-        setMustChangePassword(false);
+        await authApi.signOut();
+        setProfile(null);
+      },
+      refreshProfile: async () => {
+        try {
+          const me = await authApi.me();
+          setProfile(me);
+        } catch {
+          // Token inválido/expirado — se resuelve solo cuando el usuario
+          // vuelva a intentar una acción y reciba 401 en otra pantalla.
+        }
       },
     }),
-    [session, profile, isLoading, mustChangePassword]
+    [profile, isLoading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

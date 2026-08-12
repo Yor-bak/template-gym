@@ -24,6 +24,7 @@ const colors = Colors.dark;
 // app/_layout.tsx: mustChangePassword bloquea (client)/(trainer)).
 export default function ChangePasswordScreen() {
   const { profile, changePassword, signOut } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -32,6 +33,10 @@ export default function ChangePasswordScreen() {
 
   async function handleSubmit() {
     setError(null);
+    if (!currentPassword) {
+      setError('Ingresa la contraseña provisional que te dio recepción.');
+      return;
+    }
     if (password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres.');
       return;
@@ -41,12 +46,12 @@ export default function ChangePasswordScreen() {
       return;
     }
     setLoading(true);
-    const { error: changeError } = await changePassword(password);
+    const { error: changeError } = await changePassword(currentPassword, password);
     setLoading(false);
     if (changeError) setError(changeError);
   }
 
-  const canSubmit = password.length >= 6 && confirmPassword.length >= 6 && !loading;
+  const canSubmit = !!currentPassword && password.length >= 6 && confirmPassword.length >= 6 && !loading;
 
   return (
     <View style={styles.container}>
@@ -61,12 +66,24 @@ export default function ChangePasswordScreen() {
             </View>
             <Text style={styles.heroTitle}>Crea tu{'\n'}contraseña</Text>
             <Text style={styles.heroSubtitle}>
-              {profile ? `¡Hola ${profile.full_name.split(' ')[0]}! ` : ''}
+              {profile ? `¡Hola ${profile.fullName.split(' ')[0]}! ` : ''}
               Por seguridad, cambia la contraseña provisional que te dio recepción antes de continuar.
             </Text>
           </SafeAreaView>
 
           <View style={styles.form}>
+            <View style={styles.field}>
+              <Ionicons name="key-outline" size={20} color={colors.textSecondary} />
+              <TextInput
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry={!showPassword}
+                placeholder="Contraseña provisional (la que te dio recepción)"
+                placeholderTextColor={colors.textSecondary}
+                style={styles.input}
+              />
+            </View>
+
             <View style={styles.field}>
               <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />
               <TextInput

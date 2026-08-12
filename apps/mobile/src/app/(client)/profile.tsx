@@ -43,9 +43,9 @@ export default function ClientSettingsScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.profileCard}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarInitial}>{profile?.full_name?.charAt(0).toUpperCase() ?? '?'}</Text>
+              <Text style={styles.avatarInitial}>{profile?.fullName?.charAt(0).toUpperCase() ?? '?'}</Text>
             </View>
-            <Text style={styles.name}>{profile?.full_name}</Text>
+            <Text style={styles.name}>{profile?.fullName}</Text>
             {profile?.phone && <Text style={styles.phone}>{profile.phone}</Text>}
             {member && (
               <View style={styles.badge}>
@@ -56,10 +56,10 @@ export default function ClientSettingsScreen() {
 
           <Text style={styles.sectionLabel}>Cuenta</Text>
           <View style={styles.menuGroup}>
-            <MenuRow label="Membresía" value={member?.expiration_date ? `Vence ${member.expiration_date}` : undefined} />
+            <MenuRow label="Membresía" value={member?.expirationDate ? `Vence ${member.expirationDate}` : undefined} />
             <MenuRow
               label="Mi entrenador"
-              value={trainer?.full_name ?? 'Sin asignar'}
+              value={trainer?.fullName ?? 'Sin asignar'}
               onPress={trainer ? () => router.push('/(client)/trainer') : undefined}
             />
           </View>

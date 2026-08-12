@@ -30,10 +30,10 @@ export default function ClientTrainerScreen() {
           <Card style={styles.card}>
             <LinearGradient colors={Gradients.brand} style={styles.avatarPlaceholder}>
               <ThemedText type="title" style={styles.avatarInitial}>
-                {trainer.full_name.charAt(0).toUpperCase()}
+                {trainer.fullName.charAt(0).toUpperCase()}
               </ThemedText>
             </LinearGradient>
-            <ThemedText type="subtitle">{trainer.full_name}</ThemedText>
+            <ThemedText type="subtitle">{trainer.fullName}</ThemedText>
             {trainer.phone && (
               <ThemedText themeColor="textSecondary" type="small">
                 {trainer.phone}

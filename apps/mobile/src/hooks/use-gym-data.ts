@@ -1,19 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { mockDb } from '@/lib/mock-db';
-import type { AccessCode, Member, Profile, Routine, RoutineExercise, WorkoutLog } from '@/types/database';
+import {
+  accessApi,
+  ApiError,
+  membersApi,
+  routinesApi,
+  trainerApi,
+  workoutLogsApi,
+  type RoutineExerciseInput,
+} from '@/lib/api-client';
+import type { Member, MyTrainer, QrToken, Routine, TrainerClientMember, WorkoutLog } from '@/types/database';
 
-export type RoutineWithExercises = Routine & { routine_exercises: RoutineExercise[] };
+export type RoutineWithExercises = Routine;
 
-/** Cuántos segundos vive cada código antes de rotarse. */
+/** Cuántos segundos vive cada token de QR antes de rotarse — el backend lo
+ * confirma en cada respuesta (rotateAfterSeconds), esto es solo el default
+ * mientras se resuelve la primera petición. */
 export const ACCESS_CODE_ROTATION_SECONDS = 20;
 
-/** El registro de negocio del cliente (member) ligado a su cuenta de login. */
-export function useMyMember(profileId?: string) {
+/** El registro de negocio del cliente (member) ligado a su cuenta de login.
+ * GET /members ya viene scoped por rol — como cliente devuelve solo el propio. */
+export function useMyMember(userId?: string) {
   return useQuery({
-    queryKey: ['my-member', profileId],
-    enabled: !!profileId,
-    queryFn: async (): Promise<Member | null> => mockDb.findMemberByProfileId(profileId as string),
+    queryKey: ['my-member', userId],
+    enabled: !!userId,
+    queryFn: async (): Promise<Member | null> => membersApi.mine(),
   });
 }
 
@@ -22,26 +33,26 @@ export function useMember(memberId?: string) {
   return useQuery({
     queryKey: ['member', memberId],
     enabled: !!memberId,
-    queryFn: async (): Promise<Member | null> => mockDb.findMemberById(memberId as string),
+    queryFn: async (): Promise<Member | null> => membersApi.byId(memberId as string),
   });
 }
 
 /**
- * Código de acceso que se rota solo cada `ACCESS_CODE_ROTATION_SECONDS`
- * mientras la pantalla del QR esté abierta. Sirve tanto para clientes
- * (`owner_role: 'client'`, acceso físico al gym) como para entrenadores
- * (`owner_role: 'trainer'`, mismo propósito además de ser lo que un
- * entrenador escanea desde su vista para identificarse). En modo mock esto
- * vive en memoria (ver lib/mock-db.ts); cuando exista el backend en
- * FastAPI, vuelve a ser una llamada al servidor que también invalida el
- * código anterior.
+ * Token de acceso (QR) que se rota cada `rotateAfterSeconds` mientras la
+ * pantalla del QR esté abierta. Sirve tanto para clientes (entrada física al
+ * gym) como para entrenadores (su propio QR de identificación + lo que un
+ * entrenador escanea desde su vista para vincularse a un cliente).
  */
-export function useRotatingAccessCode(ownerId: string | undefined, ownerRole: AccessCode['owner_role'], enabled: boolean) {
+export function useRotatingAccessCode(ownerId: string | undefined, _ownerRole: 'client' | 'trainer', enabled: boolean) {
   return useQuery({
     queryKey: ['rotating-access-code', ownerId],
     enabled: enabled && !!ownerId,
-    refetchInterval: enabled && ownerId ? ACCESS_CODE_ROTATION_SECONDS * 1000 : false,
-    queryFn: async () => mockDb.rotateAccessCode(ownerId as string, ownerRole),
+    refetchInterval: (query) => {
+      if (!enabled || !ownerId) return false;
+      const seconds = query.state.data?.rotateAfterSeconds ?? ACCESS_CODE_ROTATION_SECONDS;
+      return seconds * 1000;
+    },
+    queryFn: async (): Promise<QrToken> => accessApi.myQrToken(),
   });
 }
 
@@ -50,7 +61,7 @@ export function useMyTrainer(memberId?: string) {
   return useQuery({
     queryKey: ['my-trainer', memberId],
     enabled: !!memberId,
-    queryFn: async (): Promise<Profile | null> => mockDb.findTrainerForClient(memberId as string),
+    queryFn: async (): Promise<MyTrainer | null> => trainerApi.myTrainer(),
   });
 }
 
@@ -59,7 +70,7 @@ export function useMyRoutine(memberId?: string) {
   return useQuery({
     queryKey: ['my-routine', memberId],
     enabled: !!memberId,
-    queryFn: async (): Promise<RoutineWithExercises | null> => mockDb.findPersonalizedRoutine(memberId as string),
+    queryFn: async (): Promise<RoutineWithExercises | null> => routinesApi.mine(),
   });
 }
 
@@ -68,7 +79,7 @@ export function useMyRoutine(memberId?: string) {
 export function useGenericRoutines() {
   return useQuery({
     queryKey: ['generic-routines'],
-    queryFn: async (): Promise<RoutineWithExercises[]> => mockDb.findGenericRoutines(),
+    queryFn: async (): Promise<RoutineWithExercises[]> => routinesApi.generic(),
   });
 }
 
@@ -77,7 +88,7 @@ export function useWorkoutHistory(memberId?: string) {
   return useQuery({
     queryKey: ['workout-history', memberId],
     enabled: !!memberId,
-    queryFn: async (): Promise<WorkoutLog[]> => mockDb.findWorkoutHistory(memberId as string),
+    queryFn: async (): Promise<WorkoutLog[]> => workoutLogsApi.mine(),
   });
 }
 
@@ -87,7 +98,7 @@ export function useLogWorkoutCompletion(memberId: string | undefined) {
   return useMutation({
     mutationFn: async ({ routineId, routineTitle }: { routineId: string; routineTitle: string }) => {
       if (!memberId) throw new Error('Falta el id del cliente.');
-      return mockDb.logWorkoutCompletion(memberId, routineId, routineTitle);
+      return workoutLogsApi.log(routineId, routineTitle);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workout-history', memberId] });
@@ -100,7 +111,7 @@ export function useMyClients(trainerId?: string) {
   return useQuery({
     queryKey: ['my-clients', trainerId],
     enabled: !!trainerId,
-    queryFn: async (): Promise<Member[]> => mockDb.findClientsForTrainer(trainerId as string),
+    queryFn: async (): Promise<TrainerClientMember[]> => trainerApi.myClients(),
   });
 }
 
@@ -109,39 +120,51 @@ export function useClientRoutine(memberId?: string) {
   return useQuery({
     queryKey: ['client-routine', memberId],
     enabled: !!memberId,
-    queryFn: async (): Promise<RoutineWithExercises | null> => mockDb.findPersonalizedRoutine(memberId as string),
+    queryFn: async (): Promise<RoutineWithExercises | null> => routinesApi.forClient(memberId as string),
+  });
+}
+
+/** Guarda (crea o actualiza) la rutina personalizada de un cliente — usada
+ * por el editor de rutina del entrenador. */
+export function useSaveClientRoutine(memberId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { title: string; goal: string | null; exercises: RoutineExerciseInput[] }) => {
+      if (!memberId) throw new Error('Falta el id del cliente.');
+      return routinesApi.saveForClient(memberId, params);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-routine', memberId] });
+    },
   });
 }
 
 export type ScanClientResult =
   | { status: 'assigned'; clientName: string }
-  | { status: 'not_a_client' }
   | { status: 'invalid_or_expired' };
 
 /**
- * Resuelve el código escaneado por el entrenador (el mismo QR de acceso
- * rotativo que el cliente ya usa para entrar al gym) y, si pertenece a un
- * cliente vigente, lo asigna a este entrenador. El `owner_id` de un código
- * de rol "client" es directamente el `Member.id` (así se genera en
- * `(client)/index.tsx`), no un `profile.id`.
+ * Resuelve el código QR escaneado por el entrenador (el mismo QR de acceso
+ * rotativo que el cliente ve en su app) y, si pertenece a un cliente
+ * vigente de este mismo gimnasio, lo vincula a este entrenador —
+ * POST /trainer/link-client hace toda la validación server-side.
  */
 export function useAssignClientFromScan(trainerId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (rawCode: string): Promise<ScanClientResult> => {
-      const resolved = mockDb.resolveAccessCode(rawCode);
-      if (!resolved) return { status: 'invalid_or_expired' };
-      if (resolved.ownerRole !== 'client') return { status: 'not_a_client' };
-      if (!trainerId) return { status: 'invalid_or_expired' };
-
-      const member = mockDb.findMemberById(resolved.ownerId);
-      if (!member) return { status: 'invalid_or_expired' };
-
-      mockDb.assignTrainer(trainerId, member.id);
-      return { status: 'assigned', clientName: `${member.first_name} ${member.last_name}` };
+      const { error, clientId } = await trainerApi.linkClient(rawCode);
+      if (error || !clientId) return { status: 'invalid_or_expired' };
+      const member = await membersApi.byId(clientId);
+      const clientName = member ? `${member.firstName} ${member.lastName}` : 'Cliente';
+      return { status: 'assigned', clientName };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-clients', trainerId] });
+    onSuccess: (result) => {
+      if (result.status === 'assigned') {
+        queryClient.invalidateQueries({ queryKey: ['my-clients', trainerId] });
+      }
     },
   });
 }
+
+export { ApiError };

@@ -86,7 +86,7 @@ export default function ClientRoutineScreen() {
   }, [startedAt, finishedAt]);
 
   const sortedExercises = activeRoutine
-    ? [...activeRoutine.routine_exercises].sort((a, b) => a.order_index - b.order_index)
+    ? [...activeRoutine.routineExercises].sort((a, b) => a.orderIndex - b.orderIndex)
     : [];
   const total = sortedExercises.length;
   const doneCount = sortedExercises.filter((e) => doneIds.has(e.id)).length;
@@ -94,8 +94,8 @@ export default function ClientRoutineScreen() {
   const firstPendingId = sortedExercises.find((e) => !doneIds.has(e.id))?.id;
   const started = startedAt !== null;
 
-  const markedDates = new Set((history ?? []).map((h) => h.completed_date));
-  const labelsByDate = new Map((history ?? []).map((h) => [h.completed_date, h.routine_title]));
+  const markedDates = new Set((history ?? []).map((h) => h.completedDate));
+  const labelsByDate = new Map((history ?? []).map((h) => [h.completedDate, h.routineTitle]));
 
   function toggleDone(id: string) {
     setDoneIds((prev) => {
@@ -142,7 +142,7 @@ export default function ClientRoutineScreen() {
                 onPress={() => setSelectedGenericId(r.id)}>
                 <View style={styles.genericIconBadge}>
                   <Ionicons
-                    name={MUSCLE_GROUP_ICON[r.muscle_group ?? ''] ?? 'barbell-outline'}
+                    name={MUSCLE_GROUP_ICON[r.muscleGroup ?? ''] ?? 'barbell-outline'}
                     size={20}
                     color={colors.danger}
                   />
@@ -150,7 +150,7 @@ export default function ClientRoutineScreen() {
                 <View style={styles.genericInfo}>
                   <Text style={styles.genericTitle}>{r.title}</Text>
                   <Text style={styles.genericMeta}>
-                    {r.routine_exercises.length} ejercicio{r.routine_exercises.length === 1 ? '' : 's'}
+                    {r.routineExercises.length} ejercicio{r.routineExercises.length === 1 ? '' : 's'}
                   </Text>
                 </View>
                 <Text style={styles.chevron}>›</Text>
@@ -203,7 +203,7 @@ export default function ClientRoutineScreen() {
             {sortedExercises.map((exercise) => {
               const done = doneIds.has(exercise.id);
               const isCurrent = exercise.id === firstPendingId;
-              const catalogEntry = exercise.catalog_id ? getExerciseById(exercise.catalog_id) : undefined;
+              const catalogEntry = exercise.catalogId ? getExerciseById(exercise.catalogId) : undefined;
               const expanded = expandedId === exercise.id;
               return (
                 <View key={exercise.id} style={[styles.exerciseCard, isCurrent && styles.exerciseCardCurrent]}>
@@ -215,7 +215,7 @@ export default function ClientRoutineScreen() {
                       <Text style={styles.exerciseName}>{exercise.name}</Text>
                       <Text style={styles.exerciseMeta}>
                         {exercise.sets} × {exercise.reps}
-                        {exercise.rest_seconds != null ? ` · descanso ${exercise.rest_seconds}s` : ''}
+                        {exercise.restSeconds != null ? ` · descanso ${exercise.restSeconds}s` : ''}
                       </Text>
                       {exercise.notes && <Text style={styles.exerciseNotes}>{exercise.notes}</Text>}
                     </View>

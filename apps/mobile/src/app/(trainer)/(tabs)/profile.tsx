@@ -47,9 +47,9 @@ export default function TrainerProfileScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.profileCard}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarInitial}>{profile?.full_name?.charAt(0).toUpperCase() ?? '?'}</Text>
+              <Text style={styles.avatarInitial}>{profile?.fullName?.charAt(0).toUpperCase() ?? '?'}</Text>
             </View>
-            <Text style={styles.name}>{profile?.full_name}</Text>
+            <Text style={styles.name}>{profile?.fullName}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>ENTRENADOR</Text>
             </View>
@@ -67,7 +67,7 @@ export default function TrainerProfileScreen() {
               <View style={[styles.corner, styles.cornerBR]} />
 
               <View style={styles.qrInner}>
-                {loadingCode ? <ActivityIndicator color={colors.danger} /> : accessCode ? <QRCode value={accessCode.code} size={160} /> : null}
+                {loadingCode ? <ActivityIndicator color={colors.danger} /> : accessCode ? <QRCode value={accessCode.token} size={160} /> : null}
               </View>
             </View>
 

@@ -30,8 +30,6 @@ export default function ScanClientScreen() {
     const result = await mutateAsync(data);
     if (result.status === 'assigned') {
       setState({ kind: 'result', message: `Cliente asignado: ${result.clientName}`, success: true });
-    } else if (result.status === 'not_a_client') {
-      setState({ kind: 'result', message: 'Ese QR no pertenece a un cliente.', success: false });
     } else {
       setState({
         kind: 'result',

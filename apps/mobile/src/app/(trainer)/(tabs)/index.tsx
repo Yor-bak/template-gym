@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Gradients, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useMyClients } from '@/hooks/use-gym-data';
-import type { Member } from '@/types/database';
+import type { TrainerClientMember } from '@/types/database';
 
 // Misma identidad visual oscura que Acceso/Perfil/Rutina — el acento azul
 // (en vez del rojo del cliente) es el distintivo de la vista de entrenador.
@@ -60,14 +60,14 @@ export default function TrainerClientsScreen() {
   );
 }
 
-function ClientRow({ client }: { client: Member }) {
-  const fullName = `${client.first_name} ${client.last_name}`;
+function ClientRow({ client }: { client: TrainerClientMember }) {
+  const fullName = `${client.firstName} ${client.lastName}`;
   return (
     <Pressable onPress={() => router.push(`/(trainer)/client/${client.id}`)}>
       {({ pressed }) => (
         <View style={[styles.row, pressed && styles.rowPressed]}>
           <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarInitial}>{client.first_name.charAt(0).toUpperCase()}</Text>
+            <Text style={styles.avatarInitial}>{client.firstName.charAt(0).toUpperCase()}</Text>
           </View>
           <View style={styles.rowText}>
             <Text style={styles.rowName}>{fullName}</Text>
