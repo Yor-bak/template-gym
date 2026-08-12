@@ -13,6 +13,8 @@ from app.modules.inventory.router import router as inventory_router
 from app.modules.inventory_sales.router import router as inventory_sales_router
 from app.modules.members.router import router as members_router
 from app.modules.membership_plans.router import router as membership_plans_router
+from app.modules.routines.router import router as routines_router
+from app.modules.routines.router import workout_logs_router
 from app.modules.trainer_clients.router import router as trainer_clients_router
 from app.modules.users.router import router as users_router
 from app.auth.router import router as auth_router
@@ -43,6 +45,8 @@ app.include_router(inventory_router)
 app.include_router(inventory_sales_router)
 app.include_router(access_router)
 app.include_router(trainer_clients_router)
+app.include_router(routines_router)
+app.include_router(workout_logs_router)
 
 
 @app.get("/health")
