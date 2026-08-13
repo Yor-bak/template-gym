@@ -177,11 +177,6 @@ async def sync_pending_gym_provisioning(db: AsyncSession) -> dict:
             "temp_password": temp_password,
         })
 
-    logger.info(
-        "sync_pending_gym_provisioning: total_pending=%d provisioned=%d skipped=%d",
-        len(requests), len(provisioned), len(skipped),
-    )
-
     return {
         "total_pending": len(requests),
         "provisioned": provisioned,

@@ -9,7 +9,6 @@ from app.core.exceptions import ForbiddenError, NotFoundError
 from app.modules.members import repository as members_repo
 from app.modules.members import service as members_service
 from app.modules.members.schemas import MemberCreate, MemberRead
-from app.modules.membership_plans import repository as plans_repo
 from app.modules.users.models import ADMIN_ROLES, Role, User
 
 router = APIRouter(prefix="/members", tags=["members"])
@@ -31,7 +30,7 @@ async def create_member(
     member = await members_service.create_member(
         db, payload, gym_id=current_user.gym_id, created_by=current_user.id
     )
-    return members_service.to_member_read(member, plan=None)
+    return MemberRead.model_validate(member)
 
 
 @router.get("", response_model=list[MemberRead])
@@ -43,10 +42,7 @@ async def list_members(
 
     if user.role == Role.CLIENT:
         member = await members_repo.get_by_user_id(db, user.id)
-        if member is None:
-            return []
-        plan = await plans_repo.get_by_id(db, member.membership_plan_id) if member.membership_plan_id else None
-        return [members_service.to_member_read(member, plan)]
+        return [MemberRead.model_validate(member)] if member else []
 
     if user.role == Role.TRAINER:
         # trainer_clients llega en una fase posterior.
@@ -57,7 +53,7 @@ async def list_members(
         if gym_id is None:
             raise ForbiddenError("platform_admin debe especificar la sucursal")
         members = await members_service.list_for_gym(db, gym_id)
-        return await members_service.to_member_reads_for_gym(db, members, gym_id=gym_id)
+        return [MemberRead.model_validate(m) for m in members]
 
     raise ForbiddenError()
 
@@ -72,5 +68,4 @@ async def get_member(
     if member is None:
         raise NotFoundError("Member no encontrado")
     await authz.assert_can_view_member(member)
-    plan = await plans_repo.get_by_id(db, member.membership_plan_id) if member.membership_plan_id else None
-    return members_service.to_member_read(member, plan)
+    return MemberRead.model_validate(member)

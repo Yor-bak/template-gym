@@ -19,15 +19,9 @@ import type { Member, MemberStatus } from '@/types';
 
 const PAGE_SIZE = 15;
 
-// Mismo patrón de ocultamiento de UI que admin-panel-j2ec: platform_admin no
-// opera el día a día de un gym (tampoco puede registrar pagos en el
-// backend real, ver require_role en apps/api/app/modules/member_payments/router.py).
-const CAN_REGISTER_PAYMENTS: Array<string | undefined> = ['admin', 'receptionist'];
-
 function MembersContent() {
   const { members, memberships, updateMember } = useStore();
   const { user } = useAuth();
-  const canRegisterPayments = CAN_REGISTER_PAYMENTS.includes(user?.role);
   const router = useRouter();
   const searchParams = useSearchParams();
   const initStatus = searchParams.get('status') ?? '';
@@ -199,9 +193,7 @@ function MembersContent() {
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={() => router.push(`/members/${m.id}`)} title="Ver perfil" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Eye className="w-4 h-4" /></button>
-                              {canRegisterPayments && (
-                                <button onClick={() => setPaymentMember(m)} title="Registrar pago" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"><CreditCard className="w-4 h-4" /></button>
-                              )}
+                              <button onClick={() => setPaymentMember(m)} title="Registrar pago" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"><CreditCard className="w-4 h-4" /></button>
                               {m.status === 'blocked'
                                 ? <button onClick={() => handleUnblock(m)} title="Desbloquear" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"><Unlock className="w-4 h-4" /></button>
                                 : <button onClick={() => handleBlock(m)} title="Bloquear" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Lock className="w-4 h-4" /></button>

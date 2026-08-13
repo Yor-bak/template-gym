@@ -18,8 +18,6 @@ from app.modules.inventory.models import InventoryItem  # noqa: F401
 from app.modules.inventory_sales.models import InventorySale, InventorySaleItem  # noqa: F401
 from app.modules.access.models import AccessLog  # noqa: F401
 from app.modules.trainer_clients.models import TrainerClient  # noqa: F401
-from app.modules.member_payments.models import MemberPayment  # noqa: F401
-from app.modules.routines.models import Routine, RoutineExercise, WorkoutLog  # noqa: F401
 
 config = context.config
 

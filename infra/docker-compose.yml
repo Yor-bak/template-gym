@@ -51,7 +51,6 @@ services:
       ENV: production
       ADMIN_PANEL_BASE_URL: ${ADMIN_PANEL_BASE_URL:-https://api-admin.j2ec-nodes.com}
       ADMIN_PANEL_SERVICE_KEY: ${ADMIN_PANEL_SERVICE_KEY:-}
-      SYNC_SERVICE_KEY: ${SYNC_SERVICE_KEY:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

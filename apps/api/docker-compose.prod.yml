@@ -33,7 +33,6 @@ services:
       ENV: production
       ADMIN_PANEL_BASE_URL: ${ADMIN_PANEL_BASE_URL}
       ADMIN_PANEL_SERVICE_KEY: ${ADMIN_PANEL_SERVICE_KEY}
-      SYNC_SERVICE_KEY: ${SYNC_SERVICE_KEY}
     ports:
       - "127.0.0.1:8020:8000"
 
