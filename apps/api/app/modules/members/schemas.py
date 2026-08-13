@@ -25,6 +25,10 @@ class MemberRead(CamelModel):
     last_name: str
     phone: str
     email: str | None
+    membership_plan_id: uuid.UUID | None
+    # Vigencia calculada en vivo (app.modules.members.vigency), no la columna
+    # cruda — ver members/router.py. Nunca reflejaba la realidad sin esto:
+    # solo se actualizaba como side-effect de un escaneo en /access/scan.
     status: str
     start_date: date | None
     expiration_date: date | None

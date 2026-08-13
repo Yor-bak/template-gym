@@ -3,7 +3,7 @@
 // a los tipos que ya usan las pantallas (@/types) — mismo criterio que los
 // mapeos DbX -> X que ya existían para Supabase en lib/store.tsx, para no
 // tocar cada componente.
-import type { AccessLog, AccessResult, InventoryItem, InventorySale, Member, Membership } from '@/types';
+import type { AccessLog, AccessResult, InventoryItem, InventorySale, Member, Membership, Payment, PaymentMethod } from '@/types';
 
 export interface ApiMember {
   id: string;
@@ -14,6 +14,7 @@ export interface ApiMember {
   lastName: string;
   phone: string;
   email: string | null;
+  membershipPlanId: string | null;
   status: string;
   startDate: string | null;
   expirationDate: string | null;
@@ -22,9 +23,10 @@ export interface ApiMember {
   createdAt: string;
 }
 
-// membershipId/createdBy no vienen en MemberRead (apps/api todavía no los
-// expone) — se dejan en '' a propósito, documentado en
-// docs/BACKEND_PREPARATION_AUDIT_GYM.md como pendiente de backend.
+// createdBy no viene en MemberRead (apps/api todavía no lo expone) — se deja
+// en '' a propósito, documentado en docs/BACKEND_PREPARATION_AUDIT_GYM.md
+// como pendiente de backend. membershipPlanId sí llegó con el módulo de
+// pagos (necesario para que PaymentModal sepa qué plan tiene el miembro).
 export function mapMember(m: ApiMember): Member {
   return {
     id: m.id,
@@ -34,7 +36,7 @@ export function mapMember(m: ApiMember): Member {
     lastName: m.lastName,
     phone: m.phone,
     email: m.email ?? undefined,
-    membershipId: '',
+    membershipId: m.membershipPlanId ?? '',
     status: m.status as Member['status'],
     startDate: m.startDate ?? '',
     expirationDate: m.expirationDate ?? '',
@@ -151,6 +153,55 @@ export interface ApiAccessLog {
 // AccessLogRead no incluye memberNumber/memberName (backend todavía no lo
 // expone) — se resuelven aquí contra la lista de miembros ya cargada en el
 // store en vez de dejarlos en blanco, ya que sí tenemos memberId.
+export interface ApiPayment {
+  id: string;
+  gymId: string;
+  memberId: string;
+  amount: number;
+  paidAt: string;
+  coversUntil: string;
+  paymentMethod: string | null;
+  recordedBy: string | null;
+  createdAt: string;
+}
+
+// PaymentRead es deliberadamente delgado (POST /members/{id}/payments deriva
+// todo lo demás server-side, ver REQUERIMIENTOS_BACKEND_GYM.md §6) — varios
+// campos del tipo Payment del frontend no tienen contraparte real todavía:
+// - memberNumber/memberName/membershipName: se resuelven aquí contra los
+//   miembros/membresías ya cargados en el store (mismo criterio que
+//   mapAccessLog con memberById).
+// - periodStart: el backend no expone la fecha base que usó para el cálculo
+//   (podría ser paidAt o el expirationDate previo si el pago se apiló) — se
+//   aproxima a paidAt, documentado como límite conocido.
+// - status: no existe cancelación/corrección todavía (PAYMENTS_PENDING para
+//   cancelPayment) — siempre 'confirmed'.
+// - registeredBy: el backend solo da el uuid del usuario (recordedBy), no
+//   un nombre resuelto — se deja en '' igual que registeredBy en
+//   mapInventorySale.
+export function mapPayment(
+  p: ApiPayment,
+  context: { member?: Pick<Member, 'memberNumber' | 'firstName' | 'lastName' | 'membershipId'>; membershipName?: string } = {}
+): Payment {
+  const { member, membershipName } = context;
+  return {
+    id: p.id,
+    gymId: p.gymId,
+    memberId: p.memberId,
+    memberNumber: member?.memberNumber ?? '',
+    memberName: member ? `${member.firstName} ${member.lastName}`.trim() : '',
+    membershipId: member?.membershipId ?? '',
+    membershipName: membershipName ?? '',
+    amount: p.amount,
+    method: (p.paymentMethod ?? 'other') as PaymentMethod,
+    status: 'confirmed',
+    paymentDate: p.paidAt,
+    periodStart: p.paidAt,
+    periodEnd: p.coversUntil,
+    registeredBy: '',
+  };
+}
+
 export function mapAccessLog(
   l: ApiAccessLog,
   memberById: Map<string, { memberNumber: string; name: string }> = new Map()

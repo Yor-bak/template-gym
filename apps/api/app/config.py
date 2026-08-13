@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     admin_panel_base_url: str = "https://api-admin.j2ec-nodes.com"
     admin_panel_service_key: str = ""
 
+    # Protege POST /admin/sync-provisioning (disparador HTTP del cron de
+    # aprovisionamiento, ver app/modules/provisioning_sync/router.py).
+    # Separado de admin_panel_service_key a propósito: ese es saliente
+    # (cliente hacia admin-panel-j2ec), este es entrante — mismo principio
+    # que jwt_secret vs qr_secret arriba.
+    sync_service_key: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

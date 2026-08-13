@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, CreditCard, Lock, Unlock, Archive, Clock, Smartphone, Copy, Check } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
@@ -15,11 +15,21 @@ import type { MemberStatus } from '@/types';
 
 type Tab = 'summary' | 'payments' | 'accesses' | 'history' | 'notes';
 
+// Mismo patrón de ocultamiento de UI que admin-panel-j2ec: platform_admin no
+// opera el día a día de un gym (tampoco puede registrar pagos en el
+// backend real, ver require_role en apps/api/app/modules/member_payments/router.py).
+const CAN_REGISTER_PAYMENTS: Array<string | undefined> = ['admin', 'receptionist'];
+
 export default function MemberProfilePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { members, payments, accessLogs, memberships, updateMember } = useStore();
+  const { members, payments, accessLogs, memberships, updateMember, loadMemberPayments } = useStore();
   const { user } = useAuth();
+  const canRegisterPayments = CAN_REGISTER_PAYMENTS.includes(user?.role);
+
+  useEffect(() => {
+    if (id) loadMemberPayments(id).catch(() => {});
+  }, [id, loadMemberPayments]);
 
   const member = members.find(m => m.id === id);
   const membership = memberships.find(ms => ms.id === member?.membershipId);
@@ -125,9 +135,11 @@ export default function MemberProfilePage() {
             </div>
             {/* Actions */}
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-2 text-sm btn-primary rounded-lg">
-                <CreditCard className="w-4 h-4" /> Registrar pago
-              </button>
+              {canRegisterPayments && (
+                <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-2 text-sm btn-primary rounded-lg">
+                  <CreditCard className="w-4 h-4" /> Registrar pago
+                </button>
+              )}
               {member.status !== 'blocked' ? (
                 <button onClick={handleBlock} className="flex items-center gap-2 px-3 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
                   <Lock className="w-4 h-4" /> Bloquear

@@ -1,5 +1,4 @@
 import uuid
-from datetime import date, datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +8,7 @@ from app.modules.access import repository as access_repo
 from app.modules.access.models import AccessLog
 from app.modules.access.schemas import QrTokenRead
 from app.modules.members import repository as members_repo
+from app.modules.members.vigency import compute_effective_status
 from app.modules.membership_plans import repository as plans_repo
 from app.modules.users.models import Role, User
 
@@ -58,34 +58,30 @@ async def scan_access(db: AsyncSession, *, token: str, reader: str, scanning_sta
         return await _log_invalid(db, gym_id=scanning_staff.gym_id, reader=reader)
 
     plan = await plans_repo.get_by_id(db, member.membership_plan_id) if member.membership_plan_id else None
-    tolerance_days = plan.tolerance_days if plan else 0
 
-    if member.status == "blocked":
+    # Misma función que alimenta GET /members y el registro de pagos
+    # (app.modules.members.vigency) — antes esta lógica vivía solo aquí,
+    # inline, así que un miembro sin escanear nunca reflejaba su vigencia
+    # real en ningún otro lado (docs/BACKEND_PREPARATION_AUDIT_GYM.md).
+    effective = compute_effective_status(member, plan)
+    if effective == "active":
+        result = "authorized"
+    elif effective == "archived":
+        # 'archived' no existe en el vocabulario de AccessLog.result (es un
+        # estado administrativo, no de vigencia) — se trata como bloqueado
+        # a efectos de control de acceso: un miembro archivado tampoco entra.
         result = "blocked"
-    elif member.status == "temporary_access" and (
-        member.temporary_access_until is None or member.temporary_access_until > datetime.now(timezone.utc)
-    ):
-        result = "temporary_access"
-    elif member.expiration_date is None:
-        result = "expired"
     else:
-        days_left = (member.expiration_date - date.today()).days
-        if days_left < -tolerance_days:
-            result = "expired"
-        elif days_left <= 5:
-            result = "expiring_soon"
-        else:
-            result = "authorized"
+        result = effective
 
     log = AccessLog(gym_id=member.gym_id, member_id=member.id, result=result, reader=reader)
     log = await access_repo.create_log(db, log=log)
 
-    # Mismo side-effect que validate_access() en Supabase: si se detecta
-    # vencimiento/próximo a vencer y el miembro seguía "active", se persiste
-    # — pero solo se recalcula al escanear, no hay job proactivo (documentado
-    # como comportamiento heredado, no una mejora nueva de esta tarea).
-    if result in ("expired", "expiring_soon") and member.status == "active":
-        member.status = result
+    # Persiste la vigencia recién calculada (mismo criterio que
+    # member_payments/service.py:register_payment) — nunca pisa un estado
+    # administrativo (blocked/archived), que compute_effective_status ya
+    # devuelve intacto.
+    member.status = effective
 
     await db.commit()
     return log

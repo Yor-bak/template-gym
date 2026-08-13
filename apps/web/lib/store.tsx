@@ -25,11 +25,13 @@ import {
   mapInventorySale,
   mapMember,
   mapMembership,
+  mapPayment,
   type ApiAccessLog,
   type ApiInventoryItem,
   type ApiInventorySale,
   type ApiMember,
   type ApiMembershipPlan,
+  type ApiPayment,
 } from './api/mappers';
 import { useAuth } from './auth';
 import { isApiMode, isDemoMode } from './data/config';
@@ -234,6 +236,14 @@ interface AppStore {
   updateMember: (id: string, updates: Partial<Member>) => Promise<void>;
   addPayment: (input: Partial<Payment>) => Promise<Payment>;
   cancelPayment: (id: string, _cancelledByLabel: string, reason: string) => Promise<void>;
+  /**
+   * Carga el historial de pagos de un miembro específico dentro de
+   * `payments`. Solo tiene efecto real en modo API (GET /members/{id}/payments
+   * es por miembro, no hay endpoint que traiga todos los pagos del gym
+   * todavía) — en modo demo/Supabase `payments` ya viene precargado completo,
+   * así que ahí es un no-op.
+   */
+  loadMemberPayments: (memberId: string) => Promise<void>;
   addAccessLog: (log: Partial<AccessLog>) => Promise<void>;
   updateMembership: (id: string, updates: Partial<Membership>) => Promise<void>;
   addMembership: (input: Partial<Membership>) => Promise<Membership>;
@@ -1281,6 +1291,7 @@ function SupabaseStoreProvider({ children }: { children: React.ReactNode }) {
         updateMember,
         addPayment,
         cancelPayment,
+        loadMemberPayments: async () => {},
         addAccessLog,
         updateMembership,
         addMembership,
@@ -1760,6 +1771,7 @@ function MockStoreProvider({ children }: { children: React.ReactNode }) {
         updateMember,
         addPayment,
         cancelPayment,
+        loadMemberPayments: async () => {},
         addAccessLog,
         updateMembership,
         addMembership,
@@ -1812,6 +1824,7 @@ function ApiStoreProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventorySales, setInventorySales] = useState<InventorySale[]>([]);
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
@@ -1895,6 +1908,36 @@ function ApiStoreProvider({ children }: { children: React.ReactNode }) {
     return mapped;
   };
 
+  const mapPaymentWithContext = (row: ApiPayment, memberList: Member[]) => {
+    const member = memberList.find((m) => m.id === row.memberId);
+    const membershipName = member ? memberships.find((p) => p.id === member.membershipId)?.name : undefined;
+    return mapPayment(row, { member, membershipName });
+  };
+
+  const addPayment: AppStore['addPayment'] = async (input) => {
+    if (!input.memberId) throw new Error('addPayment requiere memberId.');
+    const created = await api.post<ApiPayment>(`/members/${input.memberId}/payments`, {
+      amount: input.amount ?? 0,
+      paymentMethod: input.method,
+    });
+    const mapped = mapPaymentWithContext(created, members);
+    setPayments((prev) => [mapped, ...prev]);
+    // El pago recalcula expirationDate/status del miembro en la misma
+    // transacción del backend (ALTA-08,
+    // docs/BACKEND_PREPARATION_AUDIT_GYM.md §3.5) — se refresca ese miembro
+    // real en vez de recalcular la nueva fecha de vencimiento en el cliente.
+    const updatedMember = await api.get<ApiMember>(`/members/${input.memberId}`);
+    const mappedMember = mapMember(updatedMember);
+    setMembers((prev) => prev.map((m) => (m.id === mappedMember.id ? mappedMember : m)));
+    return mapped;
+  };
+
+  const loadMemberPayments: AppStore['loadMemberPayments'] = async (memberId) => {
+    const rows = await api.get<ApiPayment[]>(`/members/${memberId}/payments`);
+    const mapped = rows.map((row) => mapPaymentWithContext(row, members));
+    setPayments((prev) => [...prev.filter((p) => p.memberId !== memberId), ...mapped]);
+  };
+
   const addInventoryItem: AppStore['addInventoryItem'] = (item) => {
     api.post<ApiInventoryItem>('/inventory/items', {
       area: item.area,
@@ -1935,7 +1978,7 @@ function ApiStoreProvider({ children }: { children: React.ReactNode }) {
       value={{
         gym: null,
         members,
-        payments: [],
+        payments,
         accessLogs,
         memberships,
         staff: [],
@@ -1948,8 +1991,9 @@ function ApiStoreProvider({ children }: { children: React.ReactNode }) {
         updateGym: async () => notImplemented('Configuración del gimnasio', STAFF_PENDING),
         addMember,
         updateMember: async () => notImplemented('Actualizar miembro', MEMBER_UPDATE_PENDING),
-        addPayment: async () => notImplemented('Registrar pago', PAYMENTS_PENDING),
+        addPayment,
         cancelPayment: async () => notImplemented('Cancelar pago', PAYMENTS_PENDING),
+        loadMemberPayments,
         addAccessLog: async () => notImplemented('Registrar acceso manual', 'Usa el escaneo real (/access/scan) — no existe un endpoint para insertar accesos manuales todavía.'),
         updateMembership: async () => notImplemented('Editar membresía', 'No existe PATCH /membership-plans todavía en el backend real.'),
         addMembership,
