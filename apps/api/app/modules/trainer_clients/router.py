@@ -3,10 +3,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_role
 from app.core.database import get_db
+from app.core.exceptions import NotFoundError
 from app.modules.members import repository as members_repo
 from app.modules.trainer_clients import repository as trainer_clients_repo
 from app.modules.trainer_clients import service as trainer_clients_service
-from app.modules.trainer_clients.schemas import LinkClientRequest, TrainerClientMemberRead, TrainerClientRead
+from app.modules.trainer_clients.schemas import (
+    LinkClientRequest,
+    MyTrainerRead,
+    TrainerClientMemberRead,
+    TrainerClientRead,
+)
+from app.modules.users import repository as users_repo
 from app.modules.users.models import Role, User
 
 router = APIRouter(prefix="/trainer", tags=["trainer_clients"])
@@ -43,3 +50,22 @@ async def list_my_clients(
         if member is not None:
             members.append(member)
     return [TrainerClientMemberRead.model_validate(m) for m in members]
+
+
+@router.get(
+    "/my-trainer",
+    response_model=MyTrainerRead | None,
+    dependencies=[Depends(require_role(Role.CLIENT))],
+)
+async def get_my_trainer(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MyTrainerRead | None:
+    member = await members_repo.get_by_user_id(db, current_user.id)
+    if member is None:
+        raise NotFoundError("No se encontró tu ficha de member.")
+    link = await trainer_clients_repo.get_by_client_id(db, member.id)
+    if link is None:
+        return None
+    trainer = await users_repo.get_by_id(db, link.trainer_id)
+    return MyTrainerRead.model_validate(trainer) if trainer else None

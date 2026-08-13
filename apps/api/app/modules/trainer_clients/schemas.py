@@ -23,3 +23,12 @@ class TrainerClientMemberRead(CamelModel):
     first_name: str
     last_name: str
     phone: str
+
+
+class MyTrainerRead(CamelModel):
+    """Vista mínima del entrenador para la pantalla 'Mi entrenador' del
+    cliente — el inverso de TrainerClientMemberRead."""
+
+    id: uuid.UUID
+    full_name: str
+    phone: str
