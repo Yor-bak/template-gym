@@ -37,6 +37,15 @@ export class ApiError extends Error {
   }
 }
 
+/** Mensaje de error legible para el usuario, pero que nunca oculta la causa
+ * real (timeout, TLS, DNS, etc.) — antes decía siempre "No se pudo conectar
+ * con el servidor" sin importar la causa, lo que hacía imposible diagnosticar
+ * fallos de red reales desde un APK de producción sin logs conectados. */
+function describeNetworkError(err: unknown): string {
+  const detail = err instanceof Error ? err.message : String(err);
+  return `No se pudo conectar con el servidor (${detail}).`;
+}
+
 async function request<T>(
   path: string,
   options: { method?: string; body?: unknown; auth?: boolean } = {}
@@ -87,7 +96,7 @@ export const authApi = {
       return { error: null, user: res.user, token: res.access_token };
     } catch (err) {
       if (err instanceof ApiError) return { error: err.message };
-      return { error: 'No se pudo conectar con el servidor.' };
+      return { error: describeNetworkError(err) };
     }
   },
 
@@ -103,7 +112,7 @@ export const authApi = {
       return { error: null };
     } catch (err) {
       if (err instanceof ApiError) return { error: err.message };
-      return { error: 'No se pudo conectar con el servidor.' };
+      return { error: describeNetworkError(err) };
     }
   },
 
@@ -159,7 +168,7 @@ export const trainerApi = {
       return { error: null, clientId: link.clientId };
     } catch (err) {
       if (err instanceof ApiError) return { error: err.message };
-      return { error: 'No se pudo conectar con el servidor.' };
+      return { error: describeNetworkError(err) };
     }
   },
 };
