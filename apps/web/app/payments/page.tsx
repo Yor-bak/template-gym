@@ -10,7 +10,7 @@ import { MetricCard } from '@/components/shared/MetricCard';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { InventorySaleModal } from '@/components/payments/InventorySaleModal';
 import { useStore } from '@/lib/store';
-import { useAuth } from '@/lib/auth';
+import { isStaffAdmin, useAuth } from '@/lib/auth';
 import { formatCurrency, formatDate, formatTime, getPaymentMethodLabel } from '@/lib/utils';
 import { downloadCsv } from '@/lib/csv';
 import type { IncomeSource, IncomeTransaction } from '@/types';
@@ -44,7 +44,7 @@ export default function IncomePage() {
   const { payments, inventorySales, cancelPayment, cancelInventorySale } = useStore();
   const { user } = useAuth();
   const router = useRouter();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isStaffAdmin(user?.role);
 
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');

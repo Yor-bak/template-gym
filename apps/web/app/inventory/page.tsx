@@ -14,7 +14,7 @@ import { ManualCodeEntry } from '@/components/camera/ManualCodeEntry';
 import { useCamera } from '@/lib/camera/CameraContext';
 import { useScanner } from '@/lib/camera/ScannerContext';
 import { useStore } from '@/lib/store';
-import { useAuth } from '@/lib/auth';
+import { isStaffAdmin, useAuth } from '@/lib/auth';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { InventoryArea, InventoryStatus, InventoryItem } from '@/types';
 
@@ -75,7 +75,7 @@ const fromItem = (i: InventoryItem): FormState => ({
 export default function InventoryPage() {
   const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem } = useStore();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isStaffAdmin(user?.role);
   const camera = useCamera();
   const scanner = useScanner();
 

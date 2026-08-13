@@ -12,6 +12,15 @@ import { supabase } from './supabase';
 const STAFF_ROLES = ['admin', 'receptionist', 'platform_admin'] as const;
 type StaffRole = (typeof STAFF_ROLES)[number];
 
+/** `platform_admin` es el rol más alto (superadmin de toda la plataforma,
+ * no solo de un gym) — debe poder todo lo que puede un `admin` normal, y
+ * más. Usar esto en vez de `role === 'admin'` a secas: esa comparación
+ * exacta dejaba a cualquier platform_admin sin ver los botones de crear/
+ * editar en Membresías, Personal, Entrenadores, etc. */
+export function isStaffAdmin(role: StaffRole | undefined | null): boolean {
+  return role === 'admin' || role === 'platform_admin';
+}
+
 export interface AuthUser {
   id: string;
   gymId: string | null;

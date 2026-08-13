@@ -6,7 +6,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
 import { MemberAvatar } from '@/components/members/MemberAvatar';
 import { useStore } from '@/lib/store';
-import { useAuth } from '@/lib/auth';
+import { isStaffAdmin, useAuth } from '@/lib/auth';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import type { Staff, StaffRole } from '@/types';
 
@@ -59,7 +59,7 @@ export default function StaffPage() {
 
   if (!user || user.role !== 'admin') return null;
 
-  const canEdit = user?.role === 'admin';
+  const canEdit = isStaffAdmin(user?.role);
   // El Super Admin del gimnasio (titular del contrato) es un concepto
   // distinto del Admin de plataforma (J2EC, multi-gimnasio) — este último no
   // pertenece a Personal y nunca se muestra aquí.

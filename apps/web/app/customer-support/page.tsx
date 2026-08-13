@@ -3,7 +3,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
 import { CustomerSupportSection } from '@/components/settings/CustomerSupportSection';
 import { getCustomerSupportSettings } from '@/lib/data/customerSupport';
-import { useAuth } from '@/lib/auth';
+import { isStaffAdmin, useAuth } from '@/lib/auth';
 import { isDemoMode } from '@/lib/data/config';
 import { useStore } from '@/lib/store';
 
@@ -13,7 +13,7 @@ import { useStore } from '@/lib/store';
 export default function CustomerSupportPage() {
   const { user } = useAuth();
   const { gym } = useStore();
-  const canEdit = user?.role === 'admin';
+  const canEdit = isStaffAdmin(user?.role);
 
   return (
     <AppShell>

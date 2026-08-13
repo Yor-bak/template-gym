@@ -8,7 +8,7 @@ import { ScannerViewport } from '@/components/camera/ScannerViewport';
 import { useCamera } from '@/lib/camera/CameraContext';
 import { useScanner } from '@/lib/camera/ScannerContext';
 import { DEMO_ACCESS_CODES } from '@/lib/data/mock/scannerDemo';
-import { useAuth } from '@/lib/auth';
+import { isStaffAdmin, useAuth } from '@/lib/auth';
 import { isDemoMode } from '@/lib/data/config';
 import { useStore } from '@/lib/store';
 import { usePaymentConfig } from '@/lib/paymentConfig';
@@ -111,7 +111,7 @@ export default function SettingsPage() {
     applyPrimaryColor('#c6ff3d');
   };
 
-  const canEdit = user?.role === 'admin';
+  const canEdit = isStaffAdmin(user?.role);
 
   const handleSave = async () => {
     setSaving(true);

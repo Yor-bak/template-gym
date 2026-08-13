@@ -12,7 +12,7 @@ import { PaymentModal } from '@/components/payments/PaymentModal';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useStore } from '@/lib/store';
-import { useAuth } from '@/lib/auth';
+import { isStaffAdmin, useAuth } from '@/lib/auth';
 import { formatDate, daysUntil, normalizePhone, getMemberStatusLabel } from '@/lib/utils';
 import { downloadCsv } from '@/lib/csv';
 import type { Member, MemberStatus } from '@/types';
@@ -198,7 +198,7 @@ function MembersContent() {
                                 ? <button onClick={() => handleUnblock(m)} title="Desbloquear" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"><Unlock className="w-4 h-4" /></button>
                                 : <button onClick={() => handleBlock(m)} title="Bloquear" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Lock className="w-4 h-4" /></button>
                               }
-                              {user?.role === 'admin' && m.status !== 'archived' && (
+                              {isStaffAdmin(user?.role) && m.status !== 'archived' && (
                                 <button onClick={() => handleArchive(m)} title="Archivar" className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"><Archive className="w-4 h-4" /></button>
                               )}
                             </div>

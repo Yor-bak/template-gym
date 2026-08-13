@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { MemberAvatar } from '@/components/members/MemberAvatar';
 import { useStore } from '@/lib/store';
-import { useAuth } from '@/lib/auth';
+import { isStaffAdmin, useAuth } from '@/lib/auth';
 import { isValidMexicanPhone } from '@/lib/utils';
 import type { Trainer } from '@/types';
 
@@ -28,7 +28,7 @@ export default function TrainersPage() {
     unassignTrainer,
   } = useStore();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isStaffAdmin(user?.role);
 
   // --- Nuevo entrenador ---
   const [showTrainerForm, setShowTrainerForm] = useState(false);

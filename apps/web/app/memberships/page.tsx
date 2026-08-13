@@ -5,7 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useStore } from '@/lib/store';
-import { useAuth } from '@/lib/auth';
+import { isStaffAdmin, useAuth } from '@/lib/auth';
 import { formatCurrency } from '@/lib/utils';
 import type { Membership } from '@/types';
 
@@ -27,7 +27,7 @@ export default function MembershipsPage() {
   const [editTarget, setEditTarget] = useState<Membership | null>(null);
   const [form, setForm] = useState<MembershipFormData>(emptyForm);
 
-  const canEdit = user?.role === 'admin';
+  const canEdit = isStaffAdmin(user?.role);
 
   const openCreate = () => { setForm(emptyForm); setEditTarget(null); setShowForm(true); };
   const openEdit = (ms: Membership) => {
