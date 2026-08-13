@@ -87,13 +87,17 @@ export const authApi = {
     password: string
   ): Promise<{ error: string | null; user?: User; token?: string }> => {
     try {
-      const res = await request<{ access_token: string; user: User }>('/auth/login', {
+      // La API responde camelCase (accessToken), no snake_case — este mismatch
+      // era el bug real detrás de "No se pudo conectar con el servidor": el
+      // login SÍ funcionaba (200, JWT válido), pero se guardaba `undefined`
+      // en SecureStore por leer el campo con el nombre equivocado.
+      const res = await request<{ accessToken: string; user: User }>('/auth/login', {
         method: 'POST',
         body: { phone, password },
         auth: false,
       });
-      await setToken(res.access_token);
-      return { error: null, user: res.user, token: res.access_token };
+      await setToken(res.accessToken);
+      return { error: null, user: res.user, token: res.accessToken };
     } catch (err) {
       if (err instanceof ApiError) return { error: err.message };
       return { error: describeNetworkError(err) };
