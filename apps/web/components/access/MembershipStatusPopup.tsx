@@ -22,6 +22,7 @@ const EXPLANATIONS: Record<AccessLog['result'], string> = {
   blocked: 'El acceso de este miembro fue bloqueado manualmente.',
   invalid_qr: 'El código escaneado no corresponde a ningún miembro registrado.',
   temporary_access: 'Este miembro tiene un acceso temporal autorizado, aunque su membresía esté vencida.',
+  already_entered: 'Este miembro ya registró su entrada hace unos minutos — no se cuenta como un nuevo acceso.',
   manual: 'Acceso registrado manualmente por recepción.',
 };
 

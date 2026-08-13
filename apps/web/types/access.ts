@@ -7,6 +7,7 @@ export type AccessResult =
   | 'blocked'
   | 'invalid_qr'
   | 'temporary_access'
+  | 'already_entered'
   | 'manual';
 
 export interface AccessLog {

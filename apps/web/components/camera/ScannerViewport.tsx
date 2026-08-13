@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Camera, ShieldAlert, VideoOff, AlertTriangle } from 'lucide-react';
 import { useCamera } from '@/lib/camera/CameraContext';
 import { useScanner } from '@/lib/camera/ScannerContext';
+import { SCAN_REGION_RATIO } from '@/lib/camera/scanEngine';
 
 interface ScannerViewportProps {
   size?: 'lg' | 'md' | 'sm';
@@ -40,11 +41,21 @@ export function ScannerViewport({ size = 'lg', onActivate }: ScannerViewportProp
       <video ref={scanner.videoRef} className={`w-full h-full object-cover ${showVideo ? '' : 'invisible'}`} muted playsInline />
 
       {showVideo && (
-        <div className="absolute inset-8 sm:inset-12 border-2 border-white/70 rounded-xl pointer-events-none">
-          <div className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-4 border-l-4 border-blue-400 rounded-tl-xl" />
-          <div className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-4 border-r-4 border-blue-400 rounded-tr-xl" />
-          <div className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-4 border-l-4 border-blue-400 rounded-bl-xl" />
-          <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-4 border-r-4 border-blue-400 rounded-br-xl" />
+        // El marco visual usa la misma proporción (SCAN_REGION_RATIO) que la
+        // región que realmente se analiza en scanEngine.ts — así lo que el
+        // usuario ve coincide exactamente con la zona sensible al QR, en vez
+        // del casi-todo-el-video de antes (que hacía el escaneo lento porque
+        // se procesaban muchos más píxeles de los necesarios).
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div
+            className="relative border-2 border-white/70 rounded-xl"
+            style={{ height: `${SCAN_REGION_RATIO * 100}%`, aspectRatio: '1 / 1' }}
+          >
+            <div className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-4 border-l-4 border-blue-400 rounded-tl-xl" />
+            <div className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-4 border-r-4 border-blue-400 rounded-tr-xl" />
+            <div className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-4 border-l-4 border-blue-400 rounded-bl-xl" />
+            <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-4 border-r-4 border-blue-400 rounded-br-xl" />
+          </div>
         </div>
       )}
 

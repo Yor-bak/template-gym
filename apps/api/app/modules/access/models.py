@@ -12,14 +12,23 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-VALID_RESULTS = ("authorized", "expiring_soon", "expired", "blocked", "temporary_access", "invalid_token")
+VALID_RESULTS = (
+    "authorized",
+    "expiring_soon",
+    "expired",
+    "blocked",
+    "temporary_access",
+    "invalid_token",
+    "already_entered",
+)
 
 
 class AccessLog(Base, UUIDPkMixin):
     __tablename__ = "access_logs"
     __table_args__ = (
         CheckConstraint(
-            "result IN ('authorized','expiring_soon','expired','blocked','temporary_access','invalid_token')",
+            "result IN ('authorized','expiring_soon','expired','blocked','temporary_access',"
+            "'invalid_token','already_entered')",
             name="access_logs_result_valid",
         ),
     )

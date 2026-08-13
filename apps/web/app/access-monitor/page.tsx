@@ -82,7 +82,7 @@ export default function AccessMonitorPage() {
             {localLogs.length === 0 ? (
               <p className="text-center text-sm text-gray-400 py-8">No hay accesos registrados</p>
             ) : localLogs.map(log => {
-              const isOk = ['authorized', 'expiring_soon', 'temporary_access'].includes(log.result);
+              const isOk = ['authorized', 'expiring_soon', 'temporary_access', 'already_entered'].includes(log.result);
               return (
                 <div key={log.id} className={`flex items-center gap-4 px-5 py-3 ${isOk ? 'hover:bg-green-50' : 'hover:bg-red-50'}`}>
                   <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${isOk ? 'bg-green-500' : 'bg-red-500'}`} />

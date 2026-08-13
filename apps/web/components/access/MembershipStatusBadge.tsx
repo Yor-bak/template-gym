@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertTriangle, XCircle, Ban, Clock, HelpCircle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, Ban, Clock, HelpCircle, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AccessResult } from '@/types';
 
@@ -8,6 +8,7 @@ const META: Record<AccessResult, { label: string; icon: typeof CheckCircle2; cla
   expired: { label: 'Vencido', icon: XCircle, className: 'bg-red-100 text-red-800' },
   blocked: { label: 'Bloqueado', icon: Ban, className: 'bg-gray-900 text-white' },
   temporary_access: { label: 'Acceso temporal', icon: Clock, className: 'bg-blue-100 text-blue-800' },
+  already_entered: { label: 'Ya ingresó', icon: RotateCcw, className: 'bg-orange-100 text-orange-800' },
   invalid_qr: { label: 'QR inválido', icon: XCircle, className: 'bg-red-100 text-red-800' },
   manual: { label: 'Registro manual', icon: Clock, className: 'bg-blue-100 text-blue-800' },
 };

@@ -76,6 +76,7 @@ export function getAccessResultLabel(result: AccessResult): string {
     blocked: 'Bloqueado',
     invalid_qr: 'QR inválido',
     temporary_access: 'Acceso temporal',
+    already_entered: 'Ya ingresó',
     manual: 'Manual',
   };
   return labels[result];

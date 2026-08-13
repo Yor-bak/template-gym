@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,14 @@ async def generate_my_qr_token(db: AsyncSession, *, current_user: User) -> QrTok
 
     token = generate_qr_token(subject_role="client", subject_id=member.id, gym_id=member.gym_id)
     return QrTokenRead(token=token)
+
+
+# Ventana durante la cual un segundo escaneo exitoso del mismo member se
+# considera un reingreso accidental (doble tap del staff, QR leído dos veces
+# por la cámara, etc.) en vez de una entrada nueva legítima. Suficiente para
+# cubrir errores de operación en el mostrador sin bloquear a alguien que de
+# verdad sale y vuelve a entrar más tarde en el día.
+DUPLICATE_ENTRY_COOLDOWN = timedelta(minutes=5)
 
 
 async def _log_invalid(db: AsyncSession, *, gym_id: uuid.UUID, reader: str) -> AccessLog:
@@ -76,6 +84,17 @@ async def scan_access(db: AsyncSession, *, token: str, reader: str, scanning_sta
             result = "expiring_soon"
         else:
             result = "authorized"
+
+    # Solo se avisa "ya ingresó" cuando el escaneo SÍ habría dado acceso de
+    # nuevo (authorized/expiring_soon/temporary_access) — un member bloqueado
+    # o vencido debe seguir viendo su motivo real de rechazo, nunca taparlo
+    # con un aviso de reingreso.
+    if result in ("authorized", "expiring_soon", "temporary_access"):
+        last_granted = await access_repo.get_last_granted_log(db, member_id=member.id)
+        if last_granted is not None:
+            elapsed = datetime.now(timezone.utc) - last_granted.scanned_at
+            if elapsed < DUPLICATE_ENTRY_COOLDOWN:
+                result = "already_entered"
 
     log = AccessLog(gym_id=member.gym_id, member_id=member.id, result=result, reader=reader)
     log = await access_repo.create_log(db, log=log)
