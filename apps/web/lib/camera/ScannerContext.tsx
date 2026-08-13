@@ -15,6 +15,17 @@ const USB_ENABLED_KEY = 'scanner_usb_enabled';
 const SOUND_ENABLED_KEY = 'scanner_sound_enabled';
 const VIBRATION_ENABLED_KEY = 'scanner_vibration_enabled';
 const DEFAULT_LOCK_MS = 2000;
+const UNREGISTERED_KEY = 'inventory_unregistered_scans';
+
+// Código escaneado en modo inventario que no corresponde a ningún producto
+// registrado. Se acumula en un historial persistente para poder darlo de alta
+// después, sin perder la lectura cuando el resultado en pantalla se auto-cierra.
+export interface UnregisteredScan {
+  code: string;
+  firstAt: number;
+  lastAt: number;
+  count: number;
+}
 
 type ScanBusinessResult = { kind: 'access'; log: AccessLog } | { kind: 'inventory'; result: InventoryScanResult };
 
@@ -27,6 +38,9 @@ interface ScannerContextValue {
   lastDetected: DetectedCode | null;
   lastResult: ScanBusinessResult | null;
   clearResult: () => void;
+  unregisteredScans: UnregisteredScan[];
+  dismissUnregistered: (code: string) => void;
+  clearUnregistered: () => void;
   scanCode: (code: string, source: ScanSource, format: ScanFormat | null) => Promise<void>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   lockMs: number;
@@ -80,6 +94,7 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
   const [usbEnabled, setUsbEnabledState] = useState(true);
   const [soundEnabled, setSoundEnabledState] = useState(true);
   const [vibrationEnabled, setVibrationEnabledState] = useState(true);
+  const [unregisteredScans, setUnregisteredScans] = useState<UnregisteredScan[]>([]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
@@ -102,7 +117,27 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
     setUsbEnabledState(readBool(USB_ENABLED_KEY, true));
     setSoundEnabledState(readBool(SOUND_ENABLED_KEY, true));
     setVibrationEnabledState(readBool(VIBRATION_ENABLED_KEY, true));
+    try {
+      const raw = window.localStorage.getItem(UNREGISTERED_KEY);
+      if (raw) setUnregisteredScans(JSON.parse(raw));
+    } catch {
+      // no-op
+    }
   }, []);
+
+  // Persiste el historial de códigos no registrados para que sobreviva recargas.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(UNREGISTERED_KEY, JSON.stringify(unregisteredScans));
+    } catch {
+      // no-op
+    }
+  }, [unregisteredScans]);
+
+  const dismissUnregistered = useCallback((code: string) => {
+    setUnregisteredScans(prev => prev.filter(u => u.code !== code));
+  }, []);
+  const clearUnregistered = useCallback(() => setUnregisteredScans([]), []);
 
   const setLockMs = useCallback((ms: number) => {
     setLockMsState(ms);
@@ -170,6 +205,17 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
           kind: 'inventory',
           result: item ? { type: 'found', item } : { type: 'not_found', code: trimmed },
         });
+        // Producto no registrado: se guarda en el historial (dedup por código,
+        // acumulando conteo y última lectura) para poder darlo de alta luego.
+        if (!item) {
+          setUnregisteredScans(prev => {
+            const existing = prev.find(u => u.code === trimmed);
+            if (existing) {
+              return prev.map(u => (u.code === trimmed ? { ...u, lastAt: now, count: u.count + 1 } : u));
+            }
+            return [{ code: trimmed, firstAt: now, lastAt: now, count: 1 }, ...prev];
+          });
+        }
       }
     },
     [inventory, validateAccessCode, soundEnabled, vibrationEnabled]
@@ -243,6 +289,9 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
       lastDetected,
       lastResult,
       clearResult,
+      unregisteredScans,
+      dismissUnregistered,
+      clearUnregistered,
       scanCode,
       videoRef,
       lockMs,
@@ -255,7 +304,7 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
       setVibrationEnabled,
       resetSettings,
     }),
-    [mode, reading, pauseReading, resumeReading, lastDetected, lastResult, clearResult, scanCode, lockMs, setLockMs, usbEnabled, setUsbEnabled, soundEnabled, setSoundEnabled, vibrationEnabled, setVibrationEnabled, resetSettings]
+    [mode, reading, pauseReading, resumeReading, lastDetected, lastResult, clearResult, unregisteredScans, dismissUnregistered, clearUnregistered, scanCode, lockMs, setLockMs, usbEnabled, setUsbEnabled, soundEnabled, setSoundEnabled, vibrationEnabled, setVibrationEnabled, resetSettings]
   );
 
   return <ScannerContext.Provider value={value}>{children}</ScannerContext.Provider>;

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Save, Building, Shield, CreditCard, Palette, RotateCcw, Camera } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Header } from '@/components/layout/Header';
@@ -10,6 +11,8 @@ import { DEMO_ACCESS_CODES } from '@/lib/data/mock/scannerDemo';
 import { useAuth } from '@/lib/auth';
 import { isDemoMode } from '@/lib/data/config';
 import { useStore } from '@/lib/store';
+import { usePaymentConfig } from '@/lib/paymentConfig';
+import { applyPrimaryColor, persistPrimaryColor, loadPrimaryColor, THEME_COLOR_KEY } from '@/lib/theme';
 
 type SettingsTab = 'gym' | 'access' | 'payments' | 'appearance' | 'camera';
 
@@ -23,9 +26,18 @@ const tabs: { key: SettingsTab; label: string; icon: React.ElementType }[] = [
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const { gym, updateGym, resetDemoData } = useStore();
   const camera = useCamera();
   const scanner = useScanner();
+
+  // ALTA-02 (QA_AUDIT_REPORT_GYM.md): guard temporal client-side — /settings
+  // no tiene backend real todavía (datos de useStore son mock), así que no
+  // hay nada que rechazar server-side. El fix definitivo llega cuando este
+  // módulo se conecte a un endpoint de apps/api con AuthzService.
+  useEffect(() => {
+    if (user && user.role !== 'admin') router.push('/dashboard');
+  }, [user, router]);
   const [activeTab, setActiveTab] = useState<SettingsTab>('gym');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -78,14 +90,26 @@ export default function SettingsPage() {
     blockConsecutiveAccess: false,
   });
 
-  const [paymentMethods, setPaymentMethods] = useState({
-    cash: true, card: true, transfer: true, other: false,
-  });
+  const { config: paymentConfig, setEnabled: setMethodEnabled, setOtherLabel } = usePaymentConfig();
 
-  const [primaryColor, setPrimaryColor] = useState('#16305A');
+  const [primaryColor, setPrimaryColor] = useState('#c6ff3d');
   useEffect(() => {
-    if (gym?.primaryColor) setPrimaryColor(gym.primaryColor);
+    const saved = loadPrimaryColor();
+    if (saved) setPrimaryColor(saved);
+    else if (gym?.primaryColor) setPrimaryColor(gym.primaryColor);
   }, [gym?.primaryColor]);
+
+  // Vista previa en vivo: al mover el selector, el color se aplica al instante.
+  const handleColorChange = (hex: string) => {
+    setPrimaryColor(hex);
+    applyPrimaryColor(hex);
+  };
+
+  const handleResetColor = () => {
+    try { window.localStorage.removeItem(THEME_COLOR_KEY); } catch {}
+    setPrimaryColor('#c6ff3d');
+    applyPrimaryColor('#c6ff3d');
+  };
 
   const canEdit = user?.role === 'admin';
 
@@ -95,6 +119,8 @@ export default function SettingsPage() {
       if (activeTab === 'gym') {
         await updateGym({ ...gymSettings, currency: gymSettings.currency as 'MXN' | 'USD' });
       } else if (activeTab === 'appearance') {
+        persistPrimaryColor(primaryColor);
+        applyPrimaryColor(primaryColor);
         await updateGym({ primaryColor });
       }
       setSaved(true);
@@ -105,6 +131,8 @@ export default function SettingsPage() {
   };
 
   const showsSaveButton = activeTab === 'gym' || activeTab === 'appearance';
+
+  if (!user || user.role !== 'admin') return null;
 
   return (
     <AppShell>
@@ -221,24 +249,38 @@ export default function SettingsPage() {
           {activeTab === 'payments' && (
             <div className="max-w-lg space-y-4">
               <h2 className="font-semibold text-gray-900">Métodos de pago habilitados</h2>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-                Ejemplo visual — el formulario de registrar pago todavía muestra los 4 métodos sin importar lo que se configure aquí.
-              </div>
-              {[
+              <p className="text-sm text-gray-500">
+                Los métodos activados son los únicos que aparecen al registrar un ingreso de membresía o una venta de tienda.
+              </p>
+              {([
                 { key: 'cash', label: 'Efectivo' },
                 { key: 'card', label: 'Tarjeta (débito/crédito)' },
                 { key: 'transfer', label: 'Transferencia bancaria' },
-                { key: 'other', label: 'Otro' },
-              ].map(m => (
-                <div key={m.key} className="flex items-center justify-between py-3 border-b border-gray-100">
-                  <span className="text-sm text-gray-700">{m.label}</span>
-                  <button
-                    disabled={!canEdit}
-                    onClick={() => canEdit && setPaymentMethods(prev => ({ ...prev, [m.key]: !(prev as Record<string, boolean>)[m.key] }))}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${(paymentMethods as Record<string, boolean>)[m.key] ? 'bg-[var(--primary)]' : 'bg-gray-200'}`}
-                  >
-                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${(paymentMethods as Record<string, boolean>)[m.key] ? 'translate-x-5' : ''}`} />
-                  </button>
+                { key: 'other', label: 'Otro método (personalizado)' },
+              ] as { key: 'cash' | 'card' | 'transfer' | 'other'; label: string }[]).map(m => (
+                <div key={m.key}>
+                  <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                    <span className="text-sm text-gray-700">{m.label}</span>
+                    <button
+                      disabled={!canEdit}
+                      onClick={() => canEdit && setMethodEnabled(m.key, !paymentConfig.enabled[m.key])}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${paymentConfig.enabled[m.key] ? 'bg-[var(--primary)]' : 'bg-gray-200'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${paymentConfig.enabled[m.key] ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+                  {m.key === 'other' && paymentConfig.enabled.other && (
+                    <div className="pt-3">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Nombre del método personalizado</label>
+                      <input
+                        value={paymentConfig.otherLabel}
+                        onChange={e => setOtherLabel(e.target.value)}
+                        disabled={!canEdit}
+                        placeholder="Ej. Vales de despensa, Criptomoneda…"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:bg-gray-50"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -331,11 +373,17 @@ export default function SettingsPage() {
               <h2 className="font-semibold text-gray-900">Apariencia</h2>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Color principal</label>
-                <div className="flex gap-3 items-center">
-                  <input type="color" value={primaryColor} onChange={e => setPrimaryColor(e.target.value)} disabled={!canEdit} className="w-10 h-10 rounded-lg cursor-pointer border border-gray-200" />
+                <div className="flex gap-3 items-center flex-wrap">
+                  <input type="color" value={primaryColor} onChange={e => handleColorChange(e.target.value)} disabled={!canEdit} className="w-10 h-10 rounded-lg cursor-pointer border border-gray-200" />
                   <span className="text-sm text-gray-600 font-mono">{primaryColor}</span>
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}>Vista previa</span>
+                  {canEdit && (
+                    <button onClick={handleResetColor} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
+                      <RotateCcw className="w-3.5 h-3.5" /> Restablecer
+                    </button>
+                  )}
                 </div>
-                <p className="text-xs text-gray-400 mt-2">Se guarda en la sucursal, pero el dashboard sigue usando la paleta de marca fija (azul marino) en el CSS — este valor queda disponible para cuando se lea dinámicamente.</p>
+                <p className="text-xs text-gray-400 mt-2">El color se aplica al instante como vista previa y se fija en todo el panel (botones, acentos y enlaces activos) al guardar. Se conserva al recargar.</p>
               </div>
             </div>
           )}

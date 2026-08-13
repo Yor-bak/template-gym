@@ -13,7 +13,8 @@ import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
-import { formatDate, daysUntil, normalizePhone } from '@/lib/utils';
+import { formatDate, daysUntil, normalizePhone, getMemberStatusLabel } from '@/lib/utils';
+import { downloadCsv } from '@/lib/csv';
 import type { Member, MemberStatus } from '@/types';
 
 const PAGE_SIZE = 15;
@@ -61,6 +62,18 @@ function MembersContent() {
     setConfirmDialog({ open: true, title, desc, action });
   };
 
+  const handleExportCsv = () => {
+    const rows = filtered.map(m => [
+      m.memberNumber, `${m.firstName} ${m.lastName}`, m.phone ?? '', m.email ?? '',
+      getMemberStatusLabel(m.status), formatDate(m.expirationDate),
+    ]);
+    downloadCsv(
+      `miembros_${new Date().toISOString().split('T')[0]}.csv`,
+      ['No. miembro', 'Nombre', 'Teléfono', 'Correo', 'Estado', 'Vence'],
+      rows,
+    );
+  };
+
   const handleBlock = (m: Member) => confirm(
     `Bloquear a ${m.firstName}?`,
     'El miembro no podrá acceder al gimnasio.',
@@ -90,7 +103,7 @@ function MembersContent() {
         subtitle={`${filtered.length} miembro${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`}
         actions={
           <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+            <button onClick={handleExportCsv} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
               <Download className="w-4 h-4" /> Exportar
             </button>
             <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 text-sm btn-primary rounded-lg">
@@ -167,11 +180,15 @@ function MembersContent() {
                           <td className="px-4 py-3 text-gray-600">{m.phone}</td>
                           <td className="px-4 py-3 text-gray-600">{ms?.name ?? '—'}</td>
                           <td className="px-4 py-3"><StatusBadge status={m.status as Parameters<typeof StatusBadge>[0]['status']} /></td>
-                          <td className="px-4 py-3 text-gray-600">{formatDate(m.expirationDate)}</td>
+                          <td className="px-4 py-3 text-gray-600">{m.expirationDate ? formatDate(m.expirationDate) : '—'}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-xs font-medium ${days < 0 ? 'text-red-600' : days <= 5 ? 'text-yellow-600' : 'text-gray-600'}`}>
-                              {days < 0 ? `−${Math.abs(days)}` : days === 0 ? 'Hoy' : `${days}d`}
-                            </span>
+                            {m.expirationDate ? (
+                              <span className={`text-xs font-medium ${days < 0 ? 'text-red-600' : days <= 5 ? 'text-yellow-600' : 'text-gray-600'}`}>
+                                {days < 0 ? `−${Math.abs(days)}` : days === 0 ? 'Hoy' : `${days}d`}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">

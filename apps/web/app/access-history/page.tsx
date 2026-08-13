@@ -8,22 +8,76 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MemberAvatar } from '@/components/members/MemberAvatar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useStore } from '@/lib/store';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, getAccessResultLabel } from '@/lib/utils';
+import { downloadCsv } from '@/lib/csv';
+
+type Period = 'today' | 'week' | 'month' | 'all';
+
+function toISODate(d: Date) {
+  return d.toISOString().split('T')[0];
+}
 
 export default function AccessHistoryPage() {
   const { accessLogs } = useStore();
   const [search, setSearch] = useState('');
   const [resultFilter, setResultFilter] = useState('');
+  // Sin esto, la vista por defecto renderizaba el año completo de logs
+  // generados (12,000+ filas sin paginar), bloqueando el hilo principal ~6s
+  // en cada visita. "Hoy" es el caso de uso más común (¿quién entró hoy?) y
+  // deja la vista instantánea; "Todos" sigue disponible para auditorías.
+  const [periodFilter, setPeriodFilter] = useState<Period>('today');
+
+  const now = new Date();
+  const TODAY = toISODate(now);
+  const THIS_MONTH = TODAY.slice(0, 7);
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - 6);
+  const THIS_WEEK_START = toISODate(weekStart);
+
+  const inPeriod = (timestamp: string) => {
+    const dateStr = timestamp.split('T')[0];
+    if (periodFilter === 'today') return dateStr === TODAY;
+    if (periodFilter === 'week') return dateStr >= THIS_WEEK_START;
+    if (periodFilter === 'month') return dateStr.startsWith(THIS_MONTH);
+    return true;
+  };
+
+  const inPeriodLogs = useMemo(
+    () => accessLogs.filter(a => inPeriod(a.timestamp)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [accessLogs, periodFilter, TODAY, THIS_WEEK_START, THIS_MONTH]
+  );
+
+  // Un solo recorrido para los conteos de las píldoras, en vez de un
+  // .filter() completo por píldora (8x) en cada render.
+  const resultCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const a of inPeriodLogs) counts[a.result] = (counts[a.result] ?? 0) + 1;
+    return counts;
+  }, [inPeriodLogs]);
 
   const filtered = useMemo(() => {
-    let list = accessLogs;
+    let list = inPeriodLogs;
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(a => a.memberName?.toLowerCase().includes(q) || a.memberNumber?.toLowerCase().includes(q));
     }
     if (resultFilter) list = list.filter(a => a.result === resultFilter);
     return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [accessLogs, search, resultFilter]);
+  }, [inPeriodLogs, search, resultFilter]);
+
+  const handleExportCsv = () => {
+    const rows = filtered.map(a => [
+      formatDateTime(a.timestamp), a.memberName ?? '', a.memberNumber ?? '',
+      getAccessResultLabel(a.result), a.membershipName ?? '', a.reader ?? '',
+      a.blockReason ?? a.manualReason ?? '',
+    ]);
+    downloadCsv(
+      `historial_accesos_${new Date().toISOString().split('T')[0]}.csv`,
+      ['Fecha y hora', 'Miembro', 'No. miembro', 'Resultado', 'Membresía', 'Lector', 'Motivo'],
+      rows,
+    );
+  };
 
   return (
     <AppShell>
@@ -31,12 +85,21 @@ export default function AccessHistoryPage() {
         title="Historial de accesos"
         subtitle={`${filtered.length} registro${filtered.length !== 1 ? 's' : ''}`}
         actions={
-          <button className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+          <button onClick={handleExportCsv} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
             <Download className="w-4 h-4" /> Exportar CSV
           </button>
         }
       />
       <div className="p-6 space-y-4">
+        {/* Period Tabs */}
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+          {([{ key: 'today', label: 'Hoy' }, { key: 'week', label: 'Esta semana' }, { key: 'month', label: 'Este mes' }, { key: 'all', label: 'Todos' }] as { key: Period; label: string }[]).map(p => (
+            <button key={p.key} onClick={() => setPeriodFilter(p.key)} className={`px-4 py-1.5 text-sm rounded-md transition-colors ${periodFilter === p.key ? 'bg-[#2a2822] text-[var(--primary)] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+
         {/* Summary pills */}
         <div className="flex flex-wrap gap-2">
           {[
@@ -50,7 +113,7 @@ export default function AccessHistoryPage() {
             { key: 'manual', label: 'Manual', color: 'bg-purple-100 text-purple-700' },
           ].map(f => (
             <button key={f.key} onClick={() => setResultFilter(f.key)} className={`px-3 py-1.5 text-xs rounded-full transition-all ${resultFilter === f.key ? f.color + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-              {f.label} ({accessLogs.filter(a => !f.key || a.result === f.key).length})
+              {f.label} ({f.key ? resultCounts[f.key] ?? 0 : inPeriodLogs.length})
             </button>
           ))}
         </div>

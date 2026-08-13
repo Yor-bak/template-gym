@@ -1,8 +1,11 @@
 'use client';
-import { useState } from 'react';
-import { X, ShoppingCart, AlertTriangle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, ShoppingCart, AlertTriangle, Smartphone } from 'lucide-react';
 import { useInventoryCart } from '@/lib/cart/InventoryCartContext';
 import { useAuth } from '@/lib/auth';
+import { useStore } from '@/lib/store';
+import { usePaymentConfig } from '@/lib/paymentConfig';
+import { sendInvoiceToMobile } from '@/lib/mobileInbox';
 import { MemberOptionalSelector } from './MemberOptionalSelector';
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import type { InventorySale, PaymentMethod } from '@/types';
@@ -12,30 +15,48 @@ interface CheckoutModalProps {
   onCompleted: (sale: InventorySale) => void;
 }
 
-const METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
-  { value: 'cash', label: 'Efectivo' },
-  { value: 'card', label: 'Tarjeta' },
-  { value: 'transfer', label: 'Transferencia' },
-  { value: 'other', label: 'Otro' },
-];
-
 // Revisión antes de confirmar — no descuenta inventario todavía; eso solo
 // ocurre al completar (useInventoryCart().completeSale -> store).
 export function CheckoutModal({ onClose, onCompleted }: CheckoutModalProps) {
   const { items, subtotal, totalUnits, completeSale } = useInventoryCart();
   const { user } = useAuth();
+  const { members } = useStore();
+  const { options: methodOptions } = usePaymentConfig();
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [memberId, setMemberId] = useState('');
+  const [sendInvoice, setSendInvoice] = useState(true);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const now = new Date().toISOString();
+
+  const selectedMember = members.find(m => m.id === memberId);
+  const willSendInvoice = sendInvoice && !!selectedMember;
+
+  // Si el método actual quedó deshabilitado en Configuración, cae al primero disponible.
+  useEffect(() => {
+    if (methodOptions.length > 0 && !methodOptions.some(o => o.value === method)) {
+      setMethod(methodOptions[0].value);
+    }
+  }, [methodOptions, method]);
 
   const handleComplete = async () => {
     setError(null);
     setSaving(true);
     try {
       const sale = await completeSale({ method, memberId: memberId || undefined, notes: notes.trim() || undefined });
+      if (willSendInvoice && selectedMember) {
+        sendInvoiceToMobile({
+          id: `inv_${Date.now()}`,
+          memberId: selectedMember.id,
+          memberName: `${selectedMember.firstName} ${selectedMember.lastName}`,
+          saleId: sale.id,
+          total: sale.total,
+          itemsSummary: items.map(l => `${l.quantity} × ${l.productName}`).join(', '),
+          method,
+          sentAt: new Date().toISOString(),
+        });
+      }
       onCompleted(sale);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo completar la venta.');
@@ -72,13 +93,28 @@ export function CheckoutModal({ onClose, onCompleted }: CheckoutModalProps) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
             <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
-              {METHOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {methodOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Cliente (opcional)</label>
             <MemberOptionalSelector memberId={memberId} onChange={setMemberId} />
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-3">
+            <label className={`flex items-center justify-between gap-3 ${selectedMember ? 'cursor-pointer' : 'opacity-60'}`}>
+              <span className="flex items-center gap-2 text-sm text-gray-700">
+                <Smartphone className="w-4 h-4 text-blue-600" />
+                Enviar factura a la app móvil del cliente
+              </span>
+              <input type="checkbox" checked={willSendInvoice} disabled={!selectedMember} onChange={(e) => setSendInvoice(e.target.checked)} className="w-4 h-4" />
+            </label>
+            {!selectedMember ? (
+              <p className="text-xs text-gray-400 mt-2">Selecciona un cliente para enviarle la factura a su app.</p>
+            ) : willSendInvoice ? (
+              <p className="text-xs text-gray-500 mt-2">Se enviará el comprobante a la app de {selectedMember.firstName} {selectedMember.lastName}.</p>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-xs text-gray-500">

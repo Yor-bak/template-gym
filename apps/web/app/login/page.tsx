@@ -15,17 +15,21 @@ const DEMO_ROLE_LABELS: Record<string, string> = {
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const demoMode = isDemoMode();
 
-  const doLogin = async (loginEmail: string, loginPassword: string) => {
+  // Siempre navega a /dashboard tras un login exitoso — AppShell (que
+  // envuelve todas las páginas protegidas) es el único punto que decide si
+  // hay que rebotar a /change-password en vez de mostrar el dashboard, así
+  // que este componente no necesita saber nada sobre must_change_password.
+  const doLogin = async (loginIdentifier: string, loginPassword: string) => {
     setLoading(true);
     setError('');
-    const { error: loginError } = await login(loginEmail, loginPassword);
+    const { error: loginError } = await login(loginIdentifier, loginPassword);
     if (!loginError) {
       router.push('/dashboard');
     } else {
@@ -36,7 +40,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await doLogin(email, password);
+    await doLogin(phone, password);
   };
 
   return (
@@ -55,13 +59,13 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Correo</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                type="tel"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                placeholder="correo@gimnasio.mx"
+                placeholder="10 dígitos"
                 required
               />
             </div>
@@ -96,7 +100,7 @@ export default function LoginPage() {
                     key={u.id}
                     type="button"
                     disabled={loading}
-                    onClick={() => doLogin(u.email, 'demo')}
+                    onClick={() => doLogin(u.email ?? '', 'demo')}
                     className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-60 flex items-center justify-between"
                   >
                     <span className="font-medium text-gray-800">{DEMO_ROLE_LABELS[u.role] ?? u.role}</span>

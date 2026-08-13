@@ -1,8 +1,10 @@
 'use client';
-import { useMemo, useState } from 'react';
-import { X, ShoppingCart, AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { X, ShoppingCart, AlertTriangle, Smartphone } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
+import { usePaymentConfig } from '@/lib/paymentConfig';
+import { sendInvoiceToMobile } from '@/lib/mobileInbox';
 import type { PaymentMethod } from '@/types';
 
 interface InventorySaleModalProps {
@@ -14,12 +16,17 @@ export function InventorySaleModal({ onClose, onSuccess }: InventorySaleModalPro
   const { inventory, members, completeInventorySale } = useStore();
   const storeItems = useMemo(() => inventory.filter(i => i.area === 'tienda'), [inventory]);
 
+  const { options: methodOptions } = usePaymentConfig();
   const [itemId, setItemId] = useState(storeItems[0]?.id ?? '');
   const [quantity, setQuantity] = useState('1');
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [memberId, setMemberId] = useState('');
+  const [sendInvoice, setSendInvoice] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const selectedMember = members.find(m => m.id === memberId);
+  const willSendInvoice = sendInvoice && !!selectedMember;
 
   const item = storeItems.find(i => i.id === itemId);
   const qty = Number(quantity) || 0;
@@ -29,6 +36,13 @@ export function InventorySaleModal({ onClose, onSuccess }: InventorySaleModalPro
   const exceedsStock = !!item && qty > item.quantity;
   const remainingAfterSale = item ? item.quantity - qty : 0;
   const willBeLowStock = !!item && item.minStock !== undefined && qty > 0 && !exceedsStock && remainingAfterSale <= item.minStock;
+
+  // Si el método actual quedó deshabilitado en Configuración, cae al primero disponible.
+  useEffect(() => {
+    if (methodOptions.length > 0 && !methodOptions.some(o => o.value === method)) {
+      setMethod(methodOptions[0].value);
+    }
+  }, [methodOptions, method]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +54,20 @@ export function InventorySaleModal({ onClose, onSuccess }: InventorySaleModalPro
     setSaving(true);
     try {
       const sale = await completeInventorySale({ items: [{ itemId: item.id, quantity: qty }], method, memberId: memberId || undefined });
-      onSuccess?.(`Venta registrada: ${qty} × ${item.name} — ${formatCurrency(sale.total)}`);
+      if (willSendInvoice && selectedMember) {
+        sendInvoiceToMobile({
+          id: `inv_${Date.now()}`,
+          memberId: selectedMember.id,
+          memberName: `${selectedMember.firstName} ${selectedMember.lastName}`,
+          saleId: sale.id,
+          total: sale.total,
+          itemsSummary: `${qty} × ${item.name}`,
+          method,
+          sentAt: new Date().toISOString(),
+        });
+      }
+      const invoiceNote = willSendInvoice && selectedMember ? ` · Factura enviada a la app de ${selectedMember.firstName}` : '';
+      onSuccess?.(`Venta registrada: ${qty} × ${item.name} — ${formatCurrency(sale.total)}${invoiceNote}`);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar la venta.');
@@ -84,10 +111,7 @@ export function InventorySaleModal({ onClose, onSuccess }: InventorySaleModalPro
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
                   <select value={method} onChange={e => setMethod(e.target.value as PaymentMethod)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
-                    <option value="cash">Efectivo</option>
-                    <option value="card">Tarjeta</option>
-                    <option value="transfer">Transferencia</option>
-                    <option value="other">Otro</option>
+                    {methodOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
               </div>
@@ -100,6 +124,21 @@ export function InventorySaleModal({ onClose, onSuccess }: InventorySaleModalPro
                     <option key={m.id} value={m.id}>{m.firstName} {m.lastName} ({m.memberNumber})</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="border border-gray-200 rounded-lg p-3">
+                <label className={`flex items-center justify-between gap-3 ${selectedMember ? 'cursor-pointer' : 'opacity-60'}`}>
+                  <span className="flex items-center gap-2 text-sm text-gray-700">
+                    <Smartphone className="w-4 h-4 text-blue-600" />
+                    Enviar factura a la app móvil del cliente
+                  </span>
+                  <input type="checkbox" checked={willSendInvoice} disabled={!selectedMember} onChange={e => setSendInvoice(e.target.checked)} className="w-4 h-4" />
+                </label>
+                {!selectedMember ? (
+                  <p className="text-xs text-gray-400 mt-2">Selecciona un cliente arriba para enviarle la factura a su app.</p>
+                ) : willSendInvoice ? (
+                  <p className="text-xs text-gray-500 mt-2">Se enviará el comprobante a la app de {selectedMember.firstName} {selectedMember.lastName}.</p>
+                ) : null}
               </div>
 
               <div className="bg-gray-50 rounded-lg p-3 text-sm flex items-center justify-between">

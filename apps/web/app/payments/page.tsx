@@ -12,7 +12,10 @@ import { InventorySaleModal } from '@/components/payments/InventorySaleModal';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDate, formatTime, getPaymentMethodLabel } from '@/lib/utils';
+import { downloadCsv } from '@/lib/csv';
 import type { IncomeSource, IncomeTransaction } from '@/types';
+
+const STATUS_LABELS: Record<string, string> = { confirmed: 'Confirmado', cancelled: 'Cancelado', corrected: 'Corregido', pending: 'Pendiente' };
 
 type Tab = 'all' | 'membership' | 'inventory';
 
@@ -161,6 +164,33 @@ export default function IncomePage() {
   const topProductEntries = Array.from(productTotals.entries()).sort((a, b) => b[1] - a[1]);
   const topProduct = topProductEntries.length > 0 ? { name: topProductEntries[0][0], amount: topProductEntries[0][1] } : null;
 
+  const handleExportCsv = () => {
+    const source = tab === 'membership' ? filteredPayments.map(p => ({
+      occurredAt: p.paymentDate, origin: 'Membresía', concept: p.membershipName,
+      memberName: p.memberName, memberNumber: p.memberNumber, amount: p.amount,
+      method: p.method, status: p.status, responsible: p.registeredBy, reference: p.reference,
+    })) : tab === 'inventory' ? filteredSales.map(s => ({
+      occurredAt: s.soldAt.split('T')[0], origin: 'Tienda',
+      concept: s.memberName ? `Venta a ${s.memberName}` : 'Venta de mostrador',
+      memberName: s.memberName ?? '', memberNumber: '', amount: s.total,
+      method: s.method, status: s.status, responsible: s.registeredBy, reference: '',
+    })) : filteredAll.map(t => ({
+      occurredAt: t.occurredAt.split('T')[0], origin: t.source === 'membership' ? 'Membresía' : 'Tienda',
+      concept: t.concept, memberName: t.memberName ?? '', memberNumber: t.memberNumber ?? '',
+      amount: t.amount, method: t.paymentMethod, status: t.status,
+      responsible: t.responsibleName ?? '', reference: t.reference ?? '',
+    }));
+    const rows = source.map(r => [
+      formatDate(r.occurredAt), r.origin, r.concept, r.memberName, r.memberNumber,
+      r.amount, getPaymentMethodLabel(r.method), STATUS_LABELS[r.status] ?? r.status, r.responsible, r.reference,
+    ]);
+    downloadCsv(
+      `ingresos_${TODAY}.csv`,
+      ['Fecha', 'Origen', 'Concepto', 'Miembro', 'No. miembro', 'Monto', 'Método', 'Estado', 'Responsable', 'Referencia'],
+      rows,
+    );
+  };
+
   const handleCancelPayment = () => {
     if (!cancelPaymentTarget || !cancelReason.trim() || !user) return;
     cancelPayment(cancelPaymentTarget, `${user.firstName} ${user.lastName}`, cancelReason);
@@ -182,7 +212,7 @@ export default function IncomePage() {
         subtitle="Membresías, inscripciones y tienda"
         actions={
           <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+            <button onClick={handleExportCsv} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
               <Download className="w-4 h-4" /> Exportar CSV
             </button>
             <button onClick={() => router.push('/members')} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">

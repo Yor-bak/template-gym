@@ -114,9 +114,13 @@ export default function MemberProfilePage() {
                 {member.email && <span className="text-gray-600">✉️ {member.email}</span>}
               </div>
               <div className="flex flex-wrap gap-4 mt-2 text-sm">
-                <span className={`font-medium ${days < 0 ? 'text-red-600' : days <= 5 ? 'text-yellow-600' : 'text-green-600'}`}>
-                  Vence: {formatDate(member.expirationDate)} ({days < 0 ? `hace ${Math.abs(days)} días` : days === 0 ? 'hoy' : `en ${days} días`})
-                </span>
+                {member.expirationDate ? (
+                  <span className={`font-medium ${days < 0 ? 'text-red-600' : days <= 5 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    Vence: {formatDate(member.expirationDate)} ({days < 0 ? `hace ${Math.abs(days)} días` : days === 0 ? 'hoy' : `en ${days} días`})
+                  </span>
+                ) : (
+                  <span className="font-medium text-gray-400">Sin fecha de vencimiento (sin pago registrado)</span>
+                )}
               </div>
             </div>
             {/* Actions */}
@@ -176,7 +180,7 @@ export default function MemberProfilePage() {
                   { label: 'Último pago', value: member.lastPaymentDate ? formatDate(member.lastPaymentDate) : 'Sin pagos' },
                   { label: 'Vencimiento', value: formatDate(member.expirationDate) },
                   { label: 'Último acceso', value: member.lastAccessDate ? formatDateTime(member.lastAccessDate) : 'Sin accesos' },
-                  { label: 'Accesos este mes', value: memberAccesses.filter(a => a.timestamp.startsWith('2026-07')).length },
+                  { label: 'Accesos este mes', value: memberAccesses.filter(a => a.timestamp.startsWith(new Date().toISOString().slice(0, 7))).length },
                   { label: 'Total de pagos', value: memberPayments.length },
                   { label: 'Tipo de membresía', value: membership?.name ?? '—' },
                 ].map(item => (

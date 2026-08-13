@@ -2,10 +2,17 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "template-gym",
+      "name": "template-gym-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": ["run", "dev", "--workspace", "apps/web"],
       "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "template-gym-mobile-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "--workspace", "apps/mobile"],
+      "port": 8081,
       "autoPort": true
     }
   ]
